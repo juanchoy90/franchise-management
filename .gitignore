@@ -34,3 +34,7 @@ build/
 
 ### Cursor ###
 .cursorrules
+
+### LocalStack ###
+localstack/
+volume/

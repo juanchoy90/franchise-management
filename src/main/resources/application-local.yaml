@@ -1,9 +1,9 @@
-# Local Development Profile (DynamoDB Local)
+# Local Development Profile (LocalStack)
 
 aws:
   dynamodb:
     table-name: FranchiseManagement
-    endpoint: http://localhost:8000
+    endpoint: http://localhost:4566
     region: us-east-1
     max-concurrency: 10
     connection-acquisition-timeout: 3000

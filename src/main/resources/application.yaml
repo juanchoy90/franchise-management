@@ -6,3 +6,7 @@ spring:
     
   webflux:
     base-path: /api/v1
+
+aws:
+  access-key-id: ${AWS_ACCESS_KEY_ID:test}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}

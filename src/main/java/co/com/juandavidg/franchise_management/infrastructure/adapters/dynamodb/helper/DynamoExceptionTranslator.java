@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.dynamodb.model.InternalServerErrorExcepti
 import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughputExceededException;
 import software.amazon.awssdk.services.dynamodb.model.RequestLimitExceededException;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
 import java.util.Objects;
 import java.util.concurrent.CompletionException;
@@ -28,6 +29,8 @@ public final class DynamoExceptionTranslator {
                 .onErrorMap(CompletionException.class, DynamoExceptionTranslator::causeOrSelf)
                 .onErrorMap(ExecutionException.class, DynamoExceptionTranslator::causeOrSelf)
                 .onErrorMap(ConditionalCheckFailedException.class,
+                        e -> new BusinessException(ErrorCode.FRANCHISE_ALREADY_EXISTS, e))
+                .onErrorMap(TransactionCanceledException.class,
                         e -> new BusinessException(ErrorCode.FRANCHISE_ALREADY_EXISTS, e))
                 .onErrorMap(CallNotPermittedException.class,
                         e -> new TechnicalException(ErrorCode.SERVICE_UNAVAILABLE, e))
