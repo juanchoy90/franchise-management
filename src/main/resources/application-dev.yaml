@@ -1,0 +1,65 @@
+# Development Environment Profile (AWS Cloud)
+
+aws:
+  dynamodb:
+    table-name: FranchiseManagement-Dev
+    region: ${AWS_REGION:us-east-1}
+    max-concurrency: 50
+    connection-acquisition-timeout: 5000
+    connection-timeout: 5000
+    read-timeout: 5000
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      dynamodb:
+        register-health-indicator: true
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 30s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        record-exceptions:
+          - software.amazon.awssdk.core.exception.SdkClientException
+          - software.amazon.awssdk.services.dynamodb.model.DynamoDbException
+  
+  retry:
+    instances:
+      dynamodb:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        enable-randomized-wait: true
+        randomized-wait-factor: 0.5
+        retry-exceptions:
+          - software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughputExceededException
+          - software.amazon.awssdk.services.dynamodb.model.RequestLimitExceededException
+          - software.amazon.awssdk.core.exception.SdkClientException
+  
+  timelimiter:
+    instances:
+      dynamodb:
+        timeout-duration: 1500ms
+        cancel-running-future: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO
+    co.com.juandavidg.franchise_management: DEBUG
+    software.amazon.awssdk: INFO
+    io.github.resilience4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
