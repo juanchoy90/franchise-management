@@ -10,6 +10,7 @@ public record DynamoDbProperties(
     Integer maxConcurrency,
     Long connectionAcquisitionTimeout,
     Long connectionTimeout,
-    Long readTimeout
+    Long readTimeout,
+    String resilienceInstance
 ) {
 }

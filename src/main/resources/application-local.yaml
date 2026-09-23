@@ -9,6 +9,7 @@ aws:
     connection-acquisition-timeout: 3000
     connection-timeout: 3000
     read-timeout: 3000
+    resilience-instance: dynamodb
 
 resilience4j:
   circuitbreaker:
