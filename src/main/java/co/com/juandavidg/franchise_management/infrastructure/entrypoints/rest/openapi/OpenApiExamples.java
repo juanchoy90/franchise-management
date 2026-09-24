@@ -74,6 +74,10 @@ final class OpenApiExamples {
             {"code":"BRANCH_NOT_FOUND","message":"The requested branch does not exist","path":"/v1/products","timestamp":"2026-01-01T00:00:00Z","traceId":"8f3c1d2e-4b5a-6789-abcd-ef0123456789"}
             """;
 
+    static final String TOP_STOCK_PRODUCTS = """
+            [{"branchId":"7c9e6679-7425-40de-944b-e07fc1f90ae7","branchName":"Downtown","product":{"id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","name":"Fries","stock":40}},{"branchId":"9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d","branchName":"Airport","product":null}]
+            """;
+
     private OpenApiExamples() {
     }
 }

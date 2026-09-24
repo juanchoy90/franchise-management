@@ -18,6 +18,7 @@ public class FranchiseRouter {
 
     private static final String FRANCHISES = "/v1/franchises";
     private static final String FRANCHISE_BY_ID = "/v1/franchises/{id}";
+    private static final String TOP_STOCK = "/v1/franchises/{id}/products/top-stock";
     private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
 
     @Bean
@@ -41,13 +42,20 @@ public class FranchiseRouter {
                     consumes = JSON,
                     produces = JSON,
                     beanClass = FranchiseApi.class,
-                    beanMethod = "update")
+                    beanMethod = "update"),
+            @RouterOperation(
+                    path = TOP_STOCK,
+                    method = RequestMethod.GET,
+                    produces = JSON,
+                    beanClass = FranchiseApi.class,
+                    beanMethod = "findTopStock")
     })
     public RouterFunction<ServerResponse> franchiseRoutes(final FranchiseHandler handler) {
         return route()
                 .POST(FRANCHISES, handler::create)
                 .GET(FRANCHISE_BY_ID, handler::findById)
                 .PATCH(FRANCHISE_BY_ID, handler::update)
+                .GET(TOP_STOCK, handler::findTopStock)
                 .build();
     }
 }

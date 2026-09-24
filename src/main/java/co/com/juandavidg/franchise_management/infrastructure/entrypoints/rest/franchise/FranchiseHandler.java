@@ -2,11 +2,13 @@ package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.f
 
 import co.com.juandavidg.franchise_management.domain.ports.in.CreateFranchiseUseCase;
 import co.com.juandavidg.franchise_management.domain.ports.in.GetFranchiseUseCase;
+import co.com.juandavidg.franchise_management.domain.ports.in.GetTopStockProductsUseCase;
 import co.com.juandavidg.franchise_management.domain.ports.in.UpdateFranchiseUseCase;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.CreateFranchiseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.UpdateFranchiseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.openapi.FranchiseApi;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.BranchTopProductResponseDTO;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -22,16 +24,19 @@ public class FranchiseHandler implements FranchiseApi {
     private final CreateFranchiseUseCase createFranchiseUseCase;
     private final GetFranchiseUseCase getFranchiseUseCase;
     private final UpdateFranchiseUseCase updateFranchiseUseCase;
+    private final GetTopStockProductsUseCase getTopStockProductsUseCase;
     private final Validator validator;
 
     public FranchiseHandler(
             final CreateFranchiseUseCase createFranchiseUseCase,
             final GetFranchiseUseCase getFranchiseUseCase,
             final UpdateFranchiseUseCase updateFranchiseUseCase,
+            final GetTopStockProductsUseCase getTopStockProductsUseCase,
             final Validator validator) {
         this.createFranchiseUseCase = createFranchiseUseCase;
         this.getFranchiseUseCase = getFranchiseUseCase;
         this.updateFranchiseUseCase = updateFranchiseUseCase;
+        this.getTopStockProductsUseCase = getTopStockProductsUseCase;
         this.validator = validator;
     }
 
@@ -57,6 +62,13 @@ public class FranchiseHandler implements FranchiseApi {
                 .map(dto -> dto.toDomain(request.pathVariable("id")))
                 .flatMap(updateFranchiseUseCase::execute)
                 .map(FranchiseResponseDTO::fromDomain)
+                .flatMap(body -> ServerResponse.ok().bodyValue(body));
+    }
+
+    public Mono<ServerResponse> findTopStock(final ServerRequest request) {
+        return getTopStockProductsUseCase.execute(request.pathVariable("id"))
+                .map(BranchTopProductResponseDTO::fromDomain)
+                .collectList()
                 .flatMap(body -> ServerResponse.ok().bodyValue(body));
     }
 

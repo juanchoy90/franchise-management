@@ -2,7 +2,9 @@ package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.f
 
 import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.branch.dto.BranchResponseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.ProductResponseDTO;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +26,11 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.Projection;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
@@ -232,6 +237,62 @@ class FranchiseHandlerIntegrationTest {
                 .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
     }
 
+    @Test
+    void shouldListTheHighestStockProductOfEachBranch() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("In-N-Out"));
+        final BranchResponseDTO downtown = addBranch(franchise.id(), "Downtown");
+        final BranchResponseDTO airport = addBranch(franchise.id(), "Airport");
+        addProduct(franchise.id(), downtown.id(), "Fries", 10);
+        final ProductResponseDTO burger = addProduct(franchise.id(), downtown.id(), "Burger", 40);
+        addProduct(franchise.id(), airport.id(), "Soda", 5);
+
+        // ACT & ASSERT
+        client.get()
+                .uri("/v1/franchises/{id}/products/top-stock", franchise.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.length()").isEqualTo(2)
+                .jsonPath("$[?(@.branchName=='Downtown')].branchId").value(ids ->
+                        assertThat(ids.toString()).contains(downtown.id()))
+                .jsonPath("$[?(@.branchName=='Downtown')].product.id").value(ids ->
+                        assertThat(ids.toString()).contains(burger.id()))
+                .jsonPath("$[?(@.branchName=='Downtown')].product.stock").value(stocks ->
+                        assertThat(stocks.toString()).contains("40"))
+                .jsonPath("$[?(@.branchName=='Airport')].product.stock").value(stocks ->
+                        assertThat(stocks.toString()).contains("5"));
+    }
+
+    @Test
+    void shouldIncludeBranchesWithoutProducts() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Shake Shack"));
+        final BranchResponseDTO empty = addBranch(franchise.id(), "Empty");
+
+        // ACT & ASSERT
+        client.get()
+                .uri("/v1/franchises/{id}/products/top-stock", franchise.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].branchId").isEqualTo(empty.id())
+                .jsonPath("$[0].product").value(product -> assertThat(product).isNull());
+    }
+
+    @Test
+    void shouldRejectTopStockWhenFranchiseIsMissing() {
+        // ACT & ASSERT
+        client.get()
+                .uri("/v1/franchises/{id}/products/top-stock", UUID.randomUUID().toString())
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.FRANCHISE_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
     private FranchiseResponseDTO createFranchise(final String name) {
         final FranchiseResponseDTO created = client.post()
                 .uri("/v1/franchises")
@@ -240,6 +301,40 @@ class FranchiseHandlerIntegrationTest {
                 .exchange()
                 .expectStatus().isCreated()
                 .expectBody(FranchiseResponseDTO.class)
+                .returnResult()
+                .getResponseBody();
+        return Objects.requireNonNull(created);
+    }
+
+    private BranchResponseDTO addBranch(final String franchiseId, final String name) {
+        final BranchResponseDTO created = client.post()
+                .uri("/v1/branches")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"franchiseId":"%s","name":"%s"}
+                        """.formatted(franchiseId, name))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(BranchResponseDTO.class)
+                .returnResult()
+                .getResponseBody();
+        return Objects.requireNonNull(created);
+    }
+
+    private ProductResponseDTO addProduct(
+            final String franchiseId,
+            final String branchId,
+            final String name,
+            final int stock) {
+        final ProductResponseDTO created = client.post()
+                .uri("/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"franchiseId":"%s","branchId":"%s","name":"%s","stock":%d}
+                        """.formatted(franchiseId, branchId, name, stock))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody(ProductResponseDTO.class)
                 .returnResult()
                 .getResponseBody();
         return Objects.requireNonNull(created);
@@ -256,10 +351,28 @@ class FranchiseHandlerIntegrationTest {
                                 AttributeDefinition.builder()
                                         .attributeName("SK")
                                         .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("GSI1PK")
+                                        .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("stock")
+                                        .attributeType(ScalarAttributeType.N)
                                         .build())
                         .keySchema(
                                 KeySchemaElement.builder().attributeName("PK").keyType(KeyType.HASH).build(),
                                 KeySchemaElement.builder().attributeName("SK").keyType(KeyType.RANGE).build())
+                        .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
+                                .indexName("GSI1")
+                                .keySchema(
+                                        KeySchemaElement.builder().attributeName("GSI1PK").keyType(KeyType.HASH).build(),
+                                        KeySchemaElement.builder().attributeName("stock").keyType(KeyType.RANGE).build())
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.INCLUDE)
+                                        .nonKeyAttributes("name", "nameKey", "id", "branchId", "franchiseId")
+                                        .build())
+                                .build())
                         .billingMode(BillingMode.PAY_PER_REQUEST)
                         .build()))
                 .then()

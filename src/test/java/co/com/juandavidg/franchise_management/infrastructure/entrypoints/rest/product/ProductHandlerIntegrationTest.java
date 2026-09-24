@@ -26,8 +26,11 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.Projection;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
@@ -421,10 +424,28 @@ class ProductHandlerIntegrationTest {
                                 AttributeDefinition.builder()
                                         .attributeName("SK")
                                         .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("GSI1PK")
+                                        .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("stock")
+                                        .attributeType(ScalarAttributeType.N)
                                         .build())
                         .keySchema(
                                 KeySchemaElement.builder().attributeName("PK").keyType(KeyType.HASH).build(),
                                 KeySchemaElement.builder().attributeName("SK").keyType(KeyType.RANGE).build())
+                        .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
+                                .indexName("GSI1")
+                                .keySchema(
+                                        KeySchemaElement.builder().attributeName("GSI1PK").keyType(KeyType.HASH).build(),
+                                        KeySchemaElement.builder().attributeName("stock").keyType(KeyType.RANGE).build())
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.INCLUDE)
+                                        .nonKeyAttributes("name", "id", "branchId", "franchiseId")
+                                        .build())
+                                .build())
                         .billingMode(BillingMode.PAY_PER_REQUEST)
                         .build()))
                 .then()
