@@ -18,6 +18,8 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 
+import java.util.Optional;
+
 @Slf4j
 @Repository
 public class BranchDynamoAdapter implements BranchRepositoryPort {
@@ -58,6 +60,21 @@ public class BranchDynamoAdapter implements BranchRepositoryPort {
                 Mono.fromFuture(() -> enhancedClient.transactWriteItems(request))
                         .thenReturn(BranchMapper.toDomain(entity)),
                 "saveBranch");
+    }
+
+    @Override
+    public Mono<Branch> findById(final String franchiseId, final String branchId) {
+        log.debug("Finding branch {} in franchise {}", branchId, franchiseId);
+        final Key key = Key.builder()
+                .partitionValue(BranchEntity.generatePk(franchiseId))
+                .sortValue(BranchEntity.generateSk(branchId))
+                .build();
+
+        return decorator.decorate(
+                Mono.fromFuture(() -> table.getItem(key).thenApply(Optional::ofNullable))
+                        .flatMap(Mono::justOrEmpty)
+                        .map(BranchMapper::toDomain),
+                "findBranchById");
     }
 
     @Override

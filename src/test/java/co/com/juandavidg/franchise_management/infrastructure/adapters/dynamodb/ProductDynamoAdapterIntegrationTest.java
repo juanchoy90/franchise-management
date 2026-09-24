@@ -1,9 +1,9 @@
 package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb;
 
-import co.com.juandavidg.franchise_management.domain.model.Branch;
+import co.com.juandavidg.franchise_management.domain.model.Product;
 import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessException;
 import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
-import co.com.juandavidg.franchise_management.domain.ports.out.BranchRepositoryPort;
+import co.com.juandavidg.franchise_management.domain.ports.out.ProductRepositoryPort;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ import java.util.UUID;
 @SpringBootTest
 @ActiveProfiles("local")
 @Testcontainers
-class BranchDynamoAdapterIntegrationTest {
+class ProductDynamoAdapterIntegrationTest {
 
     private static final DockerImageName LOCALSTACK_IMAGE =
             DockerImageName.parse("localstack/localstack:4.4.0");
@@ -43,7 +43,7 @@ class BranchDynamoAdapterIntegrationTest {
             .withServices(LocalStackContainer.Service.DYNAMODB);
 
     @Autowired
-    private BranchRepositoryPort repository;
+    private ProductRepositoryPort repository;
 
     @Autowired
     private DynamoDbAsyncClient dynamoDbAsyncClient;
@@ -69,73 +69,53 @@ class BranchDynamoAdapterIntegrationTest {
     }
 
     @Test
-    void shouldSaveBranchAndDetectName() {
+    void shouldSaveProductAndDetectName() {
         // ARRANGE
-        final Branch branch = branch(UUID.randomUUID().toString(), "Downtown");
+        final Product product = product(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Fries");
 
         // ACT & ASSERT
-        StepVerifier.create(repository.save(branch)
-                        .then(repository.existsByFranchiseIdAndName(branch.getFranchiseId(), "Downtown")))
+        StepVerifier.create(repository.save(product)
+                        .then(repository.existsByFranchiseIdAndBranchIdAndName(
+                                product.getFranchiseId(), product.getBranchId(), "Fries")))
                 .expectNext(true)
                 .verifyComplete();
     }
 
     @Test
-    void shouldRejectDuplicateBranchName() {
+    void shouldRejectDuplicateProductId() {
         // ARRANGE
-        final String franchiseId = UUID.randomUUID().toString();
-        final Branch first = branch(franchiseId, "Airport");
-        final Branch second = branch(franchiseId, "Airport");
+        final Product product = product(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Fries");
 
         // ACT & ASSERT
-        StepVerifier.create(repository.save(first).then(repository.save(second)))
+        StepVerifier.create(repository.save(product).then(repository.save(product)))
                 .expectErrorMatches(this::isAlreadyExists)
                 .verify();
     }
 
     @Test
-    void shouldReturnFalseWhenBranchDoesNotExist() {
+    void shouldReturnFalseWhenProductDoesNotExist() {
         // ACT & ASSERT
-        StepVerifier.create(repository.existsByFranchiseIdAndName(
-                        UUID.randomUUID().toString(), "unknown-" + UUID.randomUUID()))
+        StepVerifier.create(repository.existsByFranchiseIdAndBranchIdAndName(
+                        UUID.randomUUID().toString(),
+                        UUID.randomUUID().toString(),
+                        "unknown-" + UUID.randomUUID()))
                 .expectNext(false)
                 .verifyComplete();
     }
 
     @Test
-    void shouldFindBranchById() {
+    void shouldAllowSameProductNameInDifferentBranches() {
         // ARRANGE
-        final Branch branch = branch(UUID.randomUUID().toString(), "Downtown");
-
-        // ACT & ASSERT
-        StepVerifier.create(repository.save(branch)
-                        .then(repository.findById(branch.getFranchiseId(), branch.getId())))
-                .expectNextMatches(found ->
-                        branch.getId().equals(found.getId())
-                                && branch.getFranchiseId().equals(found.getFranchiseId())
-                                && "Downtown".equals(found.getName()))
-                .verifyComplete();
-    }
-
-    @Test
-    void shouldReturnEmptyWhenBranchDoesNotExist() {
-        // ACT & ASSERT
-        StepVerifier.create(repository.findById(UUID.randomUUID().toString(), UUID.randomUUID().toString()))
-                .verifyComplete();
-    }
-
-    @Test
-    void shouldAllowSameBranchNameInDifferentFranchises() {
-        // ARRANGE
-        final Branch first = branch(UUID.randomUUID().toString(), "Downtown");
-        final Branch second = branch(UUID.randomUUID().toString(), "Downtown");
+        final String franchiseId = UUID.randomUUID().toString();
+        final Product first = product(franchiseId, UUID.randomUUID().toString(), "Fries");
+        final Product second = product(franchiseId, UUID.randomUUID().toString(), "Fries");
 
         // ACT & ASSERT
         StepVerifier.create(repository.save(first).then(repository.save(second)))
                 .expectNextMatches(saved ->
                         second.getId().equals(saved.getId())
-                                && second.getFranchiseId().equals(saved.getFranchiseId())
-                                && "Downtown".equals(saved.getName()))
+                                && second.getBranchId().equals(saved.getBranchId())
+                                && "Fries".equals(saved.getName()))
                 .verifyComplete();
     }
 
@@ -165,12 +145,14 @@ class BranchDynamoAdapterIntegrationTest {
                 && ErrorCode.FRANCHISE_ALREADY_EXISTS == businessException.getCode();
     }
 
-    private static Branch branch(final String franchiseId, final String name) {
+    private static Product product(final String franchiseId, final String branchId, final String name) {
         final Instant now = Instant.parse("2026-01-01T00:00:00Z");
-        return Branch.builder()
+        return Product.builder()
                 .id(UUID.randomUUID().toString())
                 .franchiseId(franchiseId)
+                .branchId(branchId)
                 .name(name)
+                .stock(10)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
