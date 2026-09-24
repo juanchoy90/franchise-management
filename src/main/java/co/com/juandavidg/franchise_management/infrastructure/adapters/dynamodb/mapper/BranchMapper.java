@@ -2,6 +2,7 @@ package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.
 
 import co.com.juandavidg.franchise_management.domain.model.Branch;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.BranchEntity;
+import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.helper.NameNormalizer;
 
 public final class BranchMapper {
 
@@ -15,6 +16,7 @@ public final class BranchMapper {
                 .id(branch.getId())
                 .franchiseId(branch.getFranchiseId())
                 .name(branch.getName())
+                .nameKey(NameNormalizer.normalize(branch.getName()))
                 .createdAt(branch.getCreatedAt())
                 .updatedAt(branch.getUpdatedAt())
                 .build();

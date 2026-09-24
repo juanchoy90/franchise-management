@@ -22,6 +22,7 @@ public class FranchiseEntity {
     private String sk;
     private String id;
     private String name;
+    private String nameKey;
     private Instant createdAt;
     private Instant updatedAt;
     
@@ -46,6 +47,11 @@ public class FranchiseEntity {
     public String getName() {
         return name;
     }
+
+    @DynamoDbAttribute("nameKey")
+    public String getNameKey() {
+        return nameKey;
+    }
     
     @DynamoDbAttribute("createdAt")
     public Instant getCreatedAt() {
@@ -62,6 +68,6 @@ public class FranchiseEntity {
     }
     
     public static String generateSk() {
-        return "METADATA";
+        return "#META";
     }
 }

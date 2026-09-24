@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>co.com.juandavidg</groupId>
 	<artifactId>franchise-management</artifactId>
-	<version>1.0.4</version>
+	<version>1.0.5</version>
 	<name>Franchise Management System</name>
 	<description>Reactive franchise management system with Clean Architecture and DynamoDB</description>
 	

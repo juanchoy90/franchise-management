@@ -1,5 +1,7 @@
 package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity;
 
+import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.helper.NameNormalizer;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,8 +10,6 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttri
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
-
-import java.util.Locale;
 
 @Data
 @Builder
@@ -40,7 +40,7 @@ public class FranchiseNameLockEntity {
     }
 
     public static String generatePk(final String name) {
-        return "FRANCHISE#NAME#" + name.trim().toLowerCase(Locale.ROOT);
+        return "FRANCHISE#NAME#" + NameNormalizer.normalize(name);
     }
 
     public static String generateSk() {

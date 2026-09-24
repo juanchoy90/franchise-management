@@ -2,6 +2,7 @@ package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.
 
 import co.com.juandavidg.franchise_management.domain.model.Franchise;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.FranchiseEntity;
+import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.helper.NameNormalizer;
 
 public final class FranchiseMapper {
 
@@ -14,6 +15,7 @@ public final class FranchiseMapper {
                 .sk(FranchiseEntity.generateSk())
                 .id(franchise.getId())
                 .name(franchise.getName())
+                .nameKey(NameNormalizer.normalize(franchise.getName()))
                 .createdAt(franchise.getCreatedAt())
                 .updatedAt(franchise.getUpdatedAt())
                 .build();
