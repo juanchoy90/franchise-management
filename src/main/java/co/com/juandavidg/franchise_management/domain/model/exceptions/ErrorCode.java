@@ -9,6 +9,8 @@ public enum ErrorCode {
     PRODUCT_ALREADY_EXISTS("A product with that name already exists in the branch"),
     PRODUCT_NOT_FOUND("The requested product does not exist"),
     INVALID_STOCK("Stock cannot be negative"),
+    INSUFFICIENT_STOCK("The product does not have enough stock"),
+    STOCK_DELTA_OUT_OF_RANGE("Stock delta must be between -10000000 and 10000000"),
     VALIDATION_ERROR("The request is syntactically invalid"),
 
     PERSISTENCE_ERROR("Error processing the request"),

@@ -40,7 +40,7 @@ public class DynamoResilienceDecorator {
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
                 .transformDeferred(RetryOperator.of(retry))
                 .doOnError(error -> log.error("DynamoDB operation [{}] failed", operationName, error))
-                .onErrorResume(DynamoExceptionTranslator::translate);
+                .onErrorResume(error -> DynamoExceptionTranslator.translate(error, operationName));
     }
 
     public <T> Flux<T> decorate(final Flux<T> operation, final String operationName) {
@@ -48,6 +48,6 @@ public class DynamoResilienceDecorator {
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
                 .transformDeferred(RetryOperator.of(retry))
                 .doOnError(error -> log.error("DynamoDB operation [{}] failed", operationName, error))
-                .onErrorResume(error -> DynamoExceptionTranslator.<T>translate(error));
+                .onErrorResume(error -> DynamoExceptionTranslator.<T>translate(error, operationName));
     }
 }

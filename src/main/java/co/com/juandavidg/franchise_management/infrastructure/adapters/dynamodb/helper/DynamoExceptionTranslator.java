@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.dynamodb.model.RequestLimitExceededExcept
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -25,11 +26,15 @@ public final class DynamoExceptionTranslator {
     }
 
     public static <T> Mono<T> translate(final Throwable error) {
+        return translate(error, "");
+    }
+
+    public static <T> Mono<T> translate(final Throwable error, final String operationName) {
         return Mono.<T>error(error)
                 .onErrorMap(CompletionException.class, DynamoExceptionTranslator::causeOrSelf)
                 .onErrorMap(ExecutionException.class, DynamoExceptionTranslator::causeOrSelf)
                 .onErrorMap(ConditionalCheckFailedException.class,
-                        e -> new BusinessException(ErrorCode.FRANCHISE_ALREADY_EXISTS, e))
+                        failed -> new BusinessException(conflictCode(failed, operationName), failed))
                 .onErrorMap(TransactionCanceledException.class,
                         e -> new BusinessException(ErrorCode.FRANCHISE_ALREADY_EXISTS, e))
                 .onErrorMap(CallNotPermittedException.class,
@@ -48,6 +53,18 @@ public final class DynamoExceptionTranslator {
                         e -> new TechnicalException(ErrorCode.PERSISTENCE_ERROR, e))
                 .onErrorMap(SdkException.class,
                         e -> new TechnicalException(ErrorCode.PERSISTENCE_ERROR, e));
+    }
+
+    private static ErrorCode conflictCode(
+            final ConditionalCheckFailedException failed,
+            final String operationName) {
+        return Map.of("updateProductStock", stockUpdateCode(failed))
+                .getOrDefault(operationName, ErrorCode.FRANCHISE_ALREADY_EXISTS);
+    }
+
+    private static ErrorCode stockUpdateCode(final ConditionalCheckFailedException failed) {
+        return Map.of(true, ErrorCode.INSUFFICIENT_STOCK, false, ErrorCode.PRODUCT_NOT_FOUND)
+                .get(failed.hasItem() && !failed.item().isEmpty());
     }
 
     private static Throwable causeOrSelf(final Throwable error) {
