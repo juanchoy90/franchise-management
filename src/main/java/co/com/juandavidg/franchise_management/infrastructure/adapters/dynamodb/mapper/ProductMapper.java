@@ -19,7 +19,6 @@ public final class ProductMapper {
                 .name(product.getName())
                 .nameKey(NameNormalizer.normalize(product.getName()))
                 .gsi1Pk(ProductEntity.generateGsi1Pk(product.getFranchiseId(), product.getBranchId()))
-                .gsi1Sk(product.getStock())
                 .stock(product.getStock())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())

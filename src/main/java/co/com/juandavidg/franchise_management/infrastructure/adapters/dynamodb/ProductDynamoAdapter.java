@@ -15,6 +15,8 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
@@ -117,6 +119,24 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
         return decorator.decorate(
                 applyStockDelta(franchiseId, branchId, productId, delta),
                 "updateProductStock");
+    }
+
+    @Override
+    public Mono<Product> findTopStock(final String franchiseId, final String branchId) {
+        log.debug("Finding top stock product in branch {} of franchise {}", branchId, franchiseId);
+        final QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(Key.builder()
+                        .partitionValue(ProductEntity.generateGsi1Pk(franchiseId, branchId))
+                        .build()))
+                .scanIndexForward(false)
+                .limit(1)
+                .build();
+        return decorator.decorate(
+                Mono.from(table.index("GSI1").query(request))
+                        .filter(page -> !page.items().isEmpty())
+                        .map(page -> page.items().getFirst())
+                        .map(ProductMapper::toDomain),
+                "findTopStock");
     }
 
     private Mono<Void> deleteProductAndLock(final Key productKey, final ProductEntity entity) {

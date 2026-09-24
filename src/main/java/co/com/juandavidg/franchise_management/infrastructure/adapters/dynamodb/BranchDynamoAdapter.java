@@ -9,12 +9,15 @@ import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.h
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.mapper.BranchMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbAsyncTable;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 
@@ -88,6 +91,22 @@ public class BranchDynamoAdapter implements BranchRepositoryPort {
         return decorator.decorate(
                 Mono.fromFuture(() -> nameLockTable.getItem(key)).hasElement(),
                 "existsBranch");
+    }
+
+    @Override
+    public Flux<Branch> findByFranchiseId(final String franchiseId) {
+        log.debug("Finding branches of franchise {}", franchiseId);
+        final QueryEnhancedRequest request = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.sortBeginsWith(Key.builder()
+                        .partitionValue(BranchEntity.generatePk(franchiseId))
+                        .sortValue("BRANCH#")
+                        .build()))
+                .build();
+        return decorator.decorate(
+                Flux.from(table.query(request))
+                        .concatMap(page -> Flux.fromIterable(page.items()))
+                        .map(BranchMapper::toDomain),
+                "findBranchesByFranchise");
     }
 
     private <T> TransactPutItemEnhancedRequest<T> putIfAbsent(final T item, final Class<T> itemClass) {

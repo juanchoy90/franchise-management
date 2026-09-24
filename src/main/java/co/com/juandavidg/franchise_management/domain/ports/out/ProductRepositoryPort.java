@@ -21,4 +21,6 @@ public interface ProductRepositoryPort {
             final String branchId,
             final String productId,
             final Integer delta);
+
+    Mono<Product> findTopStock(final String franchiseId, final String branchId);
 }

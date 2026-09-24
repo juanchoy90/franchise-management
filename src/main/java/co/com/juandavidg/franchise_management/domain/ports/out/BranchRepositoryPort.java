@@ -1,6 +1,7 @@
 package co.com.juandavidg.franchise_management.domain.ports.out;
 
 import co.com.juandavidg.franchise_management.domain.model.Branch;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface BranchRepositoryPort {
@@ -10,4 +11,6 @@ public interface BranchRepositoryPort {
     Mono<Branch> findById(final String franchiseId, final String branchId);
 
     Mono<Boolean> existsByFranchiseIdAndName(final String franchiseId, final String name);
+
+    Flux<Branch> findByFranchiseId(final String franchiseId);
 }
