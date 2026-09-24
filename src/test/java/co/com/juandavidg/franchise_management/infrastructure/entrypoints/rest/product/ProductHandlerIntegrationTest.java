@@ -4,6 +4,7 @@ import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.branch.dto.BranchResponseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.ProductResponseDTO;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -190,6 +191,63 @@ class ProductHandlerIntegrationTest {
                 .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
     }
 
+    @Test
+    void shouldDeleteProductAndAllowReusingName() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Burger King"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.delete()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .exchange()
+                .expectStatus().isNoContent();
+
+        client.post()
+                .uri("/v1/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(productJson(franchise.id(), branch.id(), "Fries", 8))
+                .exchange()
+                .expectStatus().isCreated()
+                .expectBody()
+                .jsonPath("$.name").isEqualTo("Fries")
+                .jsonPath("$.stock").isEqualTo(8);
+    }
+
+    @Test
+    void shouldRejectDeleteWhenProductIsMissing() {
+        // ACT & ASSERT
+        client.delete()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", UUID.randomUUID().toString())
+                        .queryParam("branchId", UUID.randomUUID().toString())
+                        .build(UUID.randomUUID().toString()))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("PRODUCT_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.PRODUCT_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectDeleteWhenQueryParamsAreMissing() {
+        // ACT & ASSERT
+        client.delete()
+                .uri("/v1/products/{id}", UUID.randomUUID().toString())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
     private FranchiseResponseDTO createFranchise(final String name) {
         final FranchiseResponseDTO created = client.post()
                 .uri("/v1/franchises")
@@ -220,17 +278,21 @@ class ProductHandlerIntegrationTest {
         return Objects.requireNonNull(created);
     }
 
-    private void addProduct(
+    private ProductResponseDTO addProduct(
             final String franchiseId,
             final String branchId,
             final String name,
             final int stock) {
-        client.post()
+        final ProductResponseDTO created = client.post()
                 .uri("/v1/products")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(productJson(franchiseId, branchId, name, stock))
                 .exchange()
-                .expectStatus().isCreated();
+                .expectStatus().isCreated()
+                .expectBody(ProductResponseDTO.class)
+                .returnResult()
+                .getResponseBody();
+        return Objects.requireNonNull(created);
     }
 
     private Mono<Void> ensureTable() {

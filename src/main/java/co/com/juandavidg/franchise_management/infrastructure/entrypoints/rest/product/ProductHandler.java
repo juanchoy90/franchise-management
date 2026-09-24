@@ -1,6 +1,10 @@
 package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product;
 
+import co.com.juandavidg.franchise_management.domain.command.DeleteProductCommand;
+import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessException;
+import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.domain.ports.in.AddProductUseCase;
+import co.com.juandavidg.franchise_management.domain.ports.in.DeleteProductUseCase;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.openapi.ProductApi;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.AddProductDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.ProductResponseDTO;
@@ -17,10 +21,15 @@ import reactor.core.publisher.Mono;
 public class ProductHandler implements ProductApi {
 
     private final AddProductUseCase addProductUseCase;
+    private final DeleteProductUseCase deleteProductUseCase;
     private final Validator validator;
 
-    public ProductHandler(final AddProductUseCase addProductUseCase, final Validator validator) {
+    public ProductHandler(
+            final AddProductUseCase addProductUseCase,
+            final DeleteProductUseCase deleteProductUseCase,
+            final Validator validator) {
         this.addProductUseCase = addProductUseCase;
+        this.deleteProductUseCase = deleteProductUseCase;
         this.validator = validator;
     }
 
@@ -31,6 +40,17 @@ public class ProductHandler implements ProductApi {
                 .flatMap(addProductUseCase::execute)
                 .map(ProductResponseDTO::fromDomain)
                 .flatMap(body -> ServerResponse.status(HttpStatus.CREATED).bodyValue(body));
+    }
+
+    public Mono<ServerResponse> delete(final ServerRequest request) {
+        return Mono.zip(
+                        Mono.just(request.pathVariable("id")),
+                        Mono.justOrEmpty(request.queryParam("franchiseId")).filter(id -> !id.isBlank()),
+                        Mono.justOrEmpty(request.queryParam("branchId")).filter(id -> !id.isBlank()))
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.VALIDATION_ERROR)))
+                .map(ids -> new DeleteProductCommand(ids.getT2(), ids.getT3(), ids.getT1()))
+                .flatMap(deleteProductUseCase::execute)
+                .then(ServerResponse.noContent().build());
     }
 
     private <T> Mono<T> validate(final T dto) {

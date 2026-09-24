@@ -11,4 +11,8 @@ public interface ProductRepositoryPort {
             final String franchiseId,
             final String branchId,
             final String name);
+
+    Mono<Product> findById(final String franchiseId, final String branchId, final String productId);
+
+    Mono<Void> delete(final String franchiseId, final String branchId, final String productId);
 }
