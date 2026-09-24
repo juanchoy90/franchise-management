@@ -4,6 +4,7 @@ public enum ErrorCode {
 
     FRANCHISE_NOT_FOUND("The requested franchise does not exist"),
     FRANCHISE_ALREADY_EXISTS("A franchise with that name already exists"),
+    VALIDATION_ERROR("The request is syntactically invalid"),
 
     PERSISTENCE_ERROR("Error processing the request"),
     SERVICE_UNAVAILABLE("The service is temporarily unavailable"),
