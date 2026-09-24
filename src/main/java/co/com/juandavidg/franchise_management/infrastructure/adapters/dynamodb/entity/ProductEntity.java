@@ -29,7 +29,6 @@ public class ProductEntity {
     private String name;
     private String nameKey;
     private String gsi1Pk;
-    private Integer gsi1Sk;
     private Integer stock;
     private Instant createdAt;
     private Instant updatedAt;
@@ -83,11 +82,6 @@ public class ProductEntity {
     }
 
     @DynamoDbSecondarySortKey(indexNames = "GSI1")
-    @DynamoDbAttribute("GSI1SK")
-    public Integer getGsi1Sk() {
-        return gsi1Sk;
-    }
-    
     @DynamoDbAttribute("stock")
     public Integer getStock() {
         return stock;

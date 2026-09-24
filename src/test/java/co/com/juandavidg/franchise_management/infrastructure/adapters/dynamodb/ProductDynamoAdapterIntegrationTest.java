@@ -22,8 +22,11 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.Projection;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
@@ -183,6 +186,32 @@ class ProductDynamoAdapterIntegrationTest {
                 .verifyComplete();
     }
 
+    @Test
+    void shouldReturnTheProductWithTheHighestStock() {
+        // ARRANGE
+        final String franchiseId = UUID.randomUUID().toString();
+        final String branchId = UUID.randomUUID().toString();
+        final Product low = product(franchiseId, branchId, "Fries", 10);
+        final Product high = product(franchiseId, branchId, "Burger", 40);
+        final Product otherBranch = product(franchiseId, UUID.randomUUID().toString(), "Soda", 99);
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(low)
+                        .then(repository.save(high))
+                        .then(repository.save(otherBranch))
+                        .then(repository.findTopStock(franchiseId, branchId)))
+                .expectNextMatches(top ->
+                        high.getId().equals(top.getId()) && Integer.valueOf(40).equals(top.getStock()))
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldCompleteEmptyWhenBranchHasNoProducts() {
+        // ACT & ASSERT
+        StepVerifier.create(repository.findTopStock(UUID.randomUUID().toString(), UUID.randomUUID().toString()))
+                .verifyComplete();
+    }
+
     private Mono<Void> ensureTable() {
         return Mono.fromFuture(() -> dynamoDbAsyncClient.createTable(CreateTableRequest.builder()
                         .tableName(properties.tableName())
@@ -194,10 +223,28 @@ class ProductDynamoAdapterIntegrationTest {
                                 AttributeDefinition.builder()
                                         .attributeName("SK")
                                         .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("GSI1PK")
+                                        .attributeType(ScalarAttributeType.S)
+                                        .build(),
+                                AttributeDefinition.builder()
+                                        .attributeName("stock")
+                                        .attributeType(ScalarAttributeType.N)
                                         .build())
                         .keySchema(
                                 KeySchemaElement.builder().attributeName("PK").keyType(KeyType.HASH).build(),
                                 KeySchemaElement.builder().attributeName("SK").keyType(KeyType.RANGE).build())
+                        .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
+                                .indexName("GSI1")
+                                .keySchema(
+                                        KeySchemaElement.builder().attributeName("GSI1PK").keyType(KeyType.HASH).build(),
+                                        KeySchemaElement.builder().attributeName("stock").keyType(KeyType.RANGE).build())
+                                .projection(Projection.builder()
+                                        .projectionType(ProjectionType.INCLUDE)
+                                        .nonKeyAttributes("name", "id", "branchId", "franchiseId")
+                                        .build())
+                                .build())
                         .billingMode(BillingMode.PAY_PER_REQUEST)
                         .build()))
                 .then()
@@ -220,13 +267,21 @@ class ProductDynamoAdapterIntegrationTest {
     }
 
     private static Product product(final String franchiseId, final String branchId, final String name) {
+        return product(franchiseId, branchId, name, 10);
+    }
+
+    private static Product product(
+            final String franchiseId,
+            final String branchId,
+            final String name,
+            final int stock) {
         final Instant now = Instant.parse("2026-01-01T00:00:00Z");
         return Product.builder()
                 .id(UUID.randomUUID().toString())
                 .franchiseId(franchiseId)
                 .branchId(branchId)
                 .name(name)
-                .stock(10)
+                .stock(stock)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
