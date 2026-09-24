@@ -15,4 +15,10 @@ public interface ProductRepositoryPort {
     Mono<Product> findById(final String franchiseId, final String branchId, final String productId);
 
     Mono<Void> delete(final String franchiseId, final String branchId, final String productId);
+
+    Mono<Product> updateStock(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final Integer delta);
 }

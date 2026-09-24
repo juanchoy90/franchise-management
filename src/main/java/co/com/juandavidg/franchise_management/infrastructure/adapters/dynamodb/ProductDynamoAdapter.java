@@ -1,8 +1,6 @@
 package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb;
 
 import co.com.juandavidg.franchise_management.domain.model.Product;
-import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessException;
-import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.domain.ports.out.ProductRepositoryPort;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.ProductEntity;
@@ -20,7 +18,14 @@ import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValuesOnConditionCheckFailure;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+
+import java.time.Instant;
+import java.util.Map;
 
 @Slf4j
 @Repository
@@ -31,15 +36,18 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
             .build();
 
     private final DynamoDbEnhancedAsyncClient enhancedClient;
+    private final DynamoDbAsyncClient dynamoDbAsyncClient;
     private final DynamoDbAsyncTable<ProductEntity> table;
     private final DynamoDbAsyncTable<ProductNameLockEntity> nameLockTable;
     private final DynamoResilienceDecorator decorator;
 
     public ProductDynamoAdapter(
             final DynamoDbEnhancedAsyncClient enhancedClient,
+            final DynamoDbAsyncClient dynamoDbAsyncClient,
             final DynamoDbProperties properties,
             final DynamoResilienceDecorator decorator) {
         this.enhancedClient = enhancedClient;
+        this.dynamoDbAsyncClient = dynamoDbAsyncClient;
         this.table = enhancedClient.table(properties.tableName(), TableSchema.fromBean(ProductEntity.class));
         this.nameLockTable = enhancedClient.table(
                 properties.tableName(),
@@ -95,9 +103,20 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
         final Key productKey = productKey(franchiseId, branchId, productId);
         return decorator.decorate(
                 Mono.fromFuture(() -> table.getItem(productKey))
-                        .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND)))
                         .flatMap(entity -> deleteProductAndLock(productKey, entity)),
                 "deleteProduct");
+    }
+
+    @Override
+    public Mono<Product> updateStock(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final Integer delta) {
+        log.debug("Applying stock delta {} to product {} in branch {}", delta, productId, branchId);
+        return decorator.decorate(
+                applyStockDelta(franchiseId, branchId, productId, delta),
+                "updateProductStock");
     }
 
     private Mono<Void> deleteProductAndLock(final Key productKey, final ProductEntity entity) {
@@ -112,6 +131,29 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
                 .addDeleteItem(nameLockTable, lockKey(entity))
                 .build();
         return Mono.fromFuture(() -> enhancedClient.transactWriteItems(request)).then();
+    }
+
+    private Mono<Product> applyStockDelta(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final Integer delta) {
+        final UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(table.tableName())
+                .key(Map.of(
+                        "PK", AttributeValue.fromS(ProductEntity.generatePk(franchiseId)),
+                        "SK", AttributeValue.fromS(ProductEntity.generateSk(branchId, productId))))
+                .updateExpression("SET stock = stock + :delta, updatedAt = :updatedAt")
+                .conditionExpression("attribute_exists(SK) AND stock >= :minStock")
+                .expressionAttributeValues(Map.of(
+                        ":delta", AttributeValue.fromN(delta.toString()),
+                        ":minStock", AttributeValue.fromN(Integer.toString(Math.max(0, -delta))),
+                        ":updatedAt", AttributeValue.fromS(Instant.now().toString())))
+                .returnValues(ReturnValue.ALL_NEW)
+                .returnValuesOnConditionCheckFailure(ReturnValuesOnConditionCheckFailure.ALL_OLD)
+                .build();
+        return Mono.fromFuture(() -> dynamoDbAsyncClient.updateItem(request))
+                .map(response -> ProductMapper.toDomain(table.tableSchema().mapToItem(response.attributes())));
     }
 
     private static Key productKey(final String franchiseId, final String branchId, final String productId) {
