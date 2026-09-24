@@ -120,6 +120,31 @@ class ProductDynamoAdapterIntegrationTest {
     }
 
     @Test
+    void shouldRejectDeleteWhenProductDoesNotExist() {
+        // ACT & ASSERT
+        StepVerifier.create(repository.delete(
+                        UUID.randomUUID().toString(),
+                        UUID.randomUUID().toString(),
+                        UUID.randomUUID().toString()))
+                .expectErrorMatches(this::isProductNotFound)
+                .verify();
+    }
+
+    @Test
+    void shouldDeleteProductAndReleaseName() {
+        // ARRANGE
+        final Product product = product(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Fries");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(product)
+                        .then(repository.delete(product.getFranchiseId(), product.getBranchId(), product.getId()))
+                        .then(repository.existsByFranchiseIdAndBranchIdAndName(
+                                product.getFranchiseId(), product.getBranchId(), "Fries")))
+                .expectNext(false)
+                .verifyComplete();
+    }
+
+    @Test
     void shouldAllowSameProductNameInDifferentBranches() {
         // ARRANGE
         final String franchiseId = UUID.randomUUID().toString();
@@ -181,6 +206,11 @@ class ProductDynamoAdapterIntegrationTest {
     private boolean isAlreadyExists(final Throwable error) {
         return error instanceof BusinessException businessException
                 && ErrorCode.FRANCHISE_ALREADY_EXISTS == businessException.getCode();
+    }
+
+    private boolean isProductNotFound(final Throwable error) {
+        return error instanceof BusinessException businessException
+                && ErrorCode.PRODUCT_NOT_FOUND == businessException.getCode();
     }
 
     private static Product product(final String franchiseId, final String branchId, final String name) {

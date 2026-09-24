@@ -1,12 +1,14 @@
 package co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb;
 
 import co.com.juandavidg.franchise_management.domain.model.Product;
+import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessException;
+import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.domain.ports.out.ProductRepositoryPort;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.ProductEntity;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.ProductNameLockEntity;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.helper.DynamoResilienceDecorator;
-import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.helper.NameNormalizer;
+import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.mapper.ProductMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import reactor.core.publisher.Mono;
@@ -15,8 +17,10 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedAsyncClient;
 import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.TransactDeleteItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 @Slf4j
 @Repository
@@ -46,7 +50,7 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
     @Override
     public Mono<Product> save(final Product product) {
         log.debug("Saving product {} in branch {}", product.getName(), product.getBranchId());
-        final ProductEntity entity = toEntity(product);
+        final ProductEntity entity = ProductMapper.toEntity(product);
         final ProductNameLockEntity nameLock = ProductNameLockEntity.from(
                 product.getFranchiseId(), product.getBranchId(), product.getId(), product.getName());
         final TransactWriteItemsEnhancedRequest request = TransactWriteItemsEnhancedRequest.builder()
@@ -56,7 +60,7 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
 
         return decorator.decorate(
                 Mono.fromFuture(() -> enhancedClient.transactWriteItems(request))
-                        .thenReturn(toDomain(entity)),
+                        .thenReturn(ProductMapper.toDomain(entity)),
                 "saveProduct");
     }
 
@@ -76,39 +80,58 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
                 "existsProduct");
     }
 
+    @Override
+    public Mono<Product> findById(final String franchiseId, final String branchId, final String productId) {
+        log.debug("Finding product {} in branch {} of franchise {}", productId, branchId, franchiseId);
+        return decorator.decorate(
+                Mono.fromFuture(() -> table.getItem(productKey(franchiseId, branchId, productId)))
+                        .map(ProductMapper::toDomain),
+                "findProductById");
+    }
+
+    @Override
+    public Mono<Void> delete(final String franchiseId, final String branchId, final String productId) {
+        log.debug("Deleting product {} in branch {} of franchise {}", productId, branchId, franchiseId);
+        final Key productKey = productKey(franchiseId, branchId, productId);
+        return decorator.decorate(
+                Mono.fromFuture(() -> table.getItem(productKey))
+                        .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND)))
+                        .flatMap(entity -> deleteProductAndLock(productKey, entity)),
+                "deleteProduct");
+    }
+
+    private Mono<Void> deleteProductAndLock(final Key productKey, final ProductEntity entity) {
+        final TransactWriteItemsEnhancedRequest request = TransactWriteItemsEnhancedRequest.builder()
+                .addDeleteItem(table, TransactDeleteItemEnhancedRequest.builder()
+                        .key(productKey)
+                        .conditionExpression(Expression.builder()
+                                .expression("attribute_exists(SK) AND nameKey = :nk")
+                                .putExpressionValue(":nk", AttributeValue.fromS(entity.getNameKey()))
+                                .build())
+                        .build())
+                .addDeleteItem(nameLockTable, lockKey(entity))
+                .build();
+        return Mono.fromFuture(() -> enhancedClient.transactWriteItems(request)).then();
+    }
+
+    private static Key productKey(final String franchiseId, final String branchId, final String productId) {
+        return Key.builder()
+                .partitionValue(ProductEntity.generatePk(franchiseId))
+                .sortValue(ProductEntity.generateSk(branchId, productId))
+                .build();
+    }
+
+    private static Key lockKey(final ProductEntity entity) {
+        return Key.builder()
+                .partitionValue(ProductNameLockEntity.generatePk(entity.getFranchiseId()))
+                .sortValue("UNIQ#PRODUCT#" + entity.getBranchId() + "#" + entity.getNameKey())
+                .build();
+    }
+
     private <T> TransactPutItemEnhancedRequest<T> putIfAbsent(final T item, final Class<T> itemClass) {
         return TransactPutItemEnhancedRequest.builder(itemClass)
                 .item(item)
                 .conditionExpression(ITEM_NOT_EXISTS)
-                .build();
-    }
-
-    private static ProductEntity toEntity(final Product product) {
-        return ProductEntity.builder()
-                .pk(ProductEntity.generatePk(product.getFranchiseId()))
-                .sk(ProductEntity.generateSk(product.getBranchId(), product.getId()))
-                .id(product.getId())
-                .franchiseId(product.getFranchiseId())
-                .branchId(product.getBranchId())
-                .name(product.getName())
-                .nameKey(NameNormalizer.normalize(product.getName()))
-                .gsi1Pk(ProductEntity.generateGsi1Pk(product.getFranchiseId(), product.getBranchId()))
-                .gsi1Sk(product.getStock())
-                .stock(product.getStock())
-                .createdAt(product.getCreatedAt())
-                .updatedAt(product.getUpdatedAt())
-                .build();
-    }
-
-    private static Product toDomain(final ProductEntity entity) {
-        return Product.builder()
-                .id(entity.getId())
-                .franchiseId(entity.getFranchiseId())
-                .branchId(entity.getBranchId())
-                .name(entity.getName())
-                .stock(entity.getStock())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 }

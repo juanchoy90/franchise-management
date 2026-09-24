@@ -7,6 +7,7 @@ public enum ErrorCode {
     BRANCH_NOT_FOUND("The requested branch does not exist"),
     BRANCH_ALREADY_EXISTS("A branch with that name already exists in the franchise"),
     PRODUCT_ALREADY_EXISTS("A product with that name already exists in the branch"),
+    PRODUCT_NOT_FOUND("The requested product does not exist"),
     INVALID_STOCK("Stock cannot be negative"),
     VALIDATION_ERROR("The request is syntactically invalid"),
 
