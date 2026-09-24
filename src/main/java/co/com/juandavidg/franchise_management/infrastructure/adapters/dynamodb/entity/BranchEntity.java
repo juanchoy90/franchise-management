@@ -20,6 +20,7 @@ public class BranchEntity {
     
     private String pk;
     private String sk;
+    private String id;
     private String franchiseId;
     private String name;
     private Instant createdAt;
@@ -37,6 +38,11 @@ public class BranchEntity {
         return sk;
     }
     
+    @DynamoDbAttribute("id")
+    public String getId() {
+        return id;
+    }
+
     @DynamoDbAttribute("franchiseId")
     public String getFranchiseId() {
         return franchiseId;
@@ -61,7 +67,7 @@ public class BranchEntity {
         return "FRANCHISE#" + franchiseId;
     }
     
-    public static String generateSk(final String branchName) {
-        return "BRANCH#" + branchName + "#METADATA";
+    public static String generateSk(final String branchId) {
+        return "BRANCH#" + branchId + "#METADATA";
     }
 }

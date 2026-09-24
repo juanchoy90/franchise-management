@@ -93,8 +93,7 @@ public class FranchiseDynamoAdapter implements FranchiseRepositoryPort {
                 .build();
 
         return decorator.decorate(
-                Mono.fromFuture(() -> nameLockTable.getItem(key).thenApply(Optional::ofNullable))
-                        .map(Optional::isPresent),
+                Mono.fromFuture(() -> nameLockTable.getItem(key)).hasElement(),
                 "existsFranchiseByName");
     }
 
