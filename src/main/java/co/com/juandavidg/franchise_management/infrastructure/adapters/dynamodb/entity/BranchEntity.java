@@ -23,6 +23,7 @@ public class BranchEntity {
     private String id;
     private String franchiseId;
     private String name;
+    private String nameKey;
     private Instant createdAt;
     private Instant updatedAt;
     
@@ -52,6 +53,11 @@ public class BranchEntity {
     public String getName() {
         return name;
     }
+
+    @DynamoDbAttribute("nameKey")
+    public String getNameKey() {
+        return nameKey;
+    }
     
     @DynamoDbAttribute("createdAt")
     public Instant getCreatedAt() {
@@ -68,6 +74,6 @@ public class BranchEntity {
     }
     
     public static String generateSk(final String branchId) {
-        return "BRANCH#" + branchId + "#METADATA";
+        return "BRANCH#" + branchId;
     }
 }

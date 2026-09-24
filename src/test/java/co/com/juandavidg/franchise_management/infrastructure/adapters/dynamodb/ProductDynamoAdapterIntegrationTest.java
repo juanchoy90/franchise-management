@@ -5,6 +5,7 @@ import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessEx
 import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.domain.ports.out.ProductRepositoryPort;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
+import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.entity.ProductEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,14 +21,18 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.BillingMode;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @SpringBootTest
@@ -104,6 +109,17 @@ class ProductDynamoAdapterIntegrationTest {
     }
 
     @Test
+    void shouldPersistGsi1SkAsNumber() {
+        // ARRANGE
+        final Product product = product(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Fries");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(product).then(rawItem(product)))
+                .expectNextMatches(item -> isNumericGsi1Sk(item, product))
+                .verifyComplete();
+    }
+
+    @Test
     void shouldAllowSameProductNameInDifferentBranches() {
         // ARRANGE
         final String franchiseId = UUID.randomUUID().toString();
@@ -138,6 +154,28 @@ class ProductDynamoAdapterIntegrationTest {
                         .build()))
                 .then()
                 .onErrorResume(ResourceInUseException.class, error -> Mono.empty());
+    }
+
+    private Mono<Map<String, AttributeValue>> rawItem(final Product product) {
+        return Mono.fromFuture(() -> dynamoDbAsyncClient.getItem(GetItemRequest.builder()
+                        .tableName(properties.tableName())
+                        .key(Map.of(
+                                "PK", AttributeValue.fromS(ProductEntity.generatePk(product.getFranchiseId())),
+                                "SK", AttributeValue.fromS(
+                                        ProductEntity.generateSk(product.getBranchId(), product.getId()))))
+                        .build()))
+                .map(GetItemResponse::item);
+    }
+
+    private static boolean isNumericGsi1Sk(final Map<String, AttributeValue> item, final Product product) {
+        final AttributeValue gsi1Pk = item.get("GSI1PK");
+        final AttributeValue gsi1Sk = item.get("GSI1SK");
+        return gsi1Pk != null
+                && ProductEntity.generateGsi1Pk(product.getFranchiseId(), product.getBranchId()).equals(gsi1Pk.s())
+                && gsi1Sk != null
+                && gsi1Sk.n() != null
+                && gsi1Sk.s() == null
+                && String.valueOf(product.getStock()).equals(gsi1Sk.n());
     }
 
     private boolean isAlreadyExists(final Throwable error) {

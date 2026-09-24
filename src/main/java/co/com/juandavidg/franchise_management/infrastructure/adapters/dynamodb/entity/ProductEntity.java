@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondarySortKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
 import java.time.Instant;
@@ -25,6 +27,9 @@ public class ProductEntity {
     private String branchId;
     private String branchName;
     private String name;
+    private String nameKey;
+    private String gsi1Pk;
+    private Integer gsi1Sk;
     private Integer stock;
     private Instant createdAt;
     private Instant updatedAt;
@@ -65,6 +70,23 @@ public class ProductEntity {
     public String getName() {
         return name;
     }
+
+    @DynamoDbAttribute("nameKey")
+    public String getNameKey() {
+        return nameKey;
+    }
+
+    @DynamoDbSecondaryPartitionKey(indexNames = "GSI1")
+    @DynamoDbAttribute("GSI1PK")
+    public String getGsi1Pk() {
+        return gsi1Pk;
+    }
+
+    @DynamoDbSecondarySortKey(indexNames = "GSI1")
+    @DynamoDbAttribute("GSI1SK")
+    public Integer getGsi1Sk() {
+        return gsi1Sk;
+    }
     
     @DynamoDbAttribute("stock")
     public Integer getStock() {
@@ -86,6 +108,10 @@ public class ProductEntity {
     }
     
     public static String generateSk(final String branchId, final String productId) {
-        return "BRANCH#" + branchId + "#PRODUCT#" + productId;
+        return "PRODUCT#" + branchId + "#" + productId;
+    }
+
+    public static String generateGsi1Pk(final String franchiseId, final String branchId) {
+        return "BRANCH#" + franchiseId + "#" + branchId;
     }
 }

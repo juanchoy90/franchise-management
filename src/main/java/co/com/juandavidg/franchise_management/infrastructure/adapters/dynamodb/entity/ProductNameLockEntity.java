@@ -16,12 +16,13 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortK
 @NoArgsConstructor
 @AllArgsConstructor
 @DynamoDbBean
-public class BranchNameLockEntity {
+public class ProductNameLockEntity {
 
     private String pk;
     private String sk;
     private String franchiseId;
     private String branchId;
+    private String productId;
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("PK")
@@ -45,20 +46,30 @@ public class BranchNameLockEntity {
         return branchId;
     }
 
+    @DynamoDbAttribute("productId")
+    public String getProductId() {
+        return productId;
+    }
+
     public static String generatePk(final String franchiseId) {
         return "FRANCHISE#" + franchiseId;
     }
 
-    public static String generateSk(final String name) {
-        return "UNIQ#BRANCH#" + NameNormalizer.normalize(name);
+    public static String generateSk(final String branchId, final String name) {
+        return "UNIQ#PRODUCT#" + branchId + "#" + NameNormalizer.normalize(name);
     }
 
-    public static BranchNameLockEntity from(final String franchiseId, final String branchId, final String name) {
-        return BranchNameLockEntity.builder()
+    public static ProductNameLockEntity from(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final String name) {
+        return ProductNameLockEntity.builder()
                 .pk(generatePk(franchiseId))
-                .sk(generateSk(name))
+                .sk(generateSk(branchId, name))
                 .franchiseId(franchiseId)
                 .branchId(branchId)
+                .productId(productId)
                 .build();
     }
 }
