@@ -13,6 +13,8 @@ public class HttpStatusResolver {
     private static final Map<ErrorCode, HttpStatus> HTTP_STATUS = Map.ofEntries(
             Map.entry(ErrorCode.FRANCHISE_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.FRANCHISE_ALREADY_EXISTS, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.BRANCH_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.BRANCH_ALREADY_EXISTS, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.PERSISTENCE_ERROR, HttpStatus.INTERNAL_SERVER_ERROR),
             Map.entry(ErrorCode.SERVICE_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE),

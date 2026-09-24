@@ -9,43 +9,32 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
-import java.time.Instant;
+import java.util.Locale;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @DynamoDbBean
-public class ProductEntity {
-    
+public class BranchNameLockEntity {
+
     private String pk;
     private String sk;
-    private String id;
     private String franchiseId;
     private String branchId;
-    private String branchName;
-    private String name;
-    private Integer stock;
-    private Instant createdAt;
-    private Instant updatedAt;
-    
+
     @DynamoDbPartitionKey
     @DynamoDbAttribute("PK")
     public String getPk() {
         return pk;
     }
-    
+
     @DynamoDbSortKey
     @DynamoDbAttribute("SK")
     public String getSk() {
         return sk;
     }
-    
-    @DynamoDbAttribute("id")
-    public String getId() {
-        return id;
-    }
-    
+
     @DynamoDbAttribute("franchiseId")
     public String getFranchiseId() {
         return franchiseId;
@@ -55,37 +44,21 @@ public class ProductEntity {
     public String getBranchId() {
         return branchId;
     }
-    
-    @DynamoDbAttribute("branchName")
-    public String getBranchName() {
-        return branchName;
-    }
-    
-    @DynamoDbAttribute("name")
-    public String getName() {
-        return name;
-    }
-    
-    @DynamoDbAttribute("stock")
-    public Integer getStock() {
-        return stock;
-    }
-    
-    @DynamoDbAttribute("createdAt")
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-    
-    @DynamoDbAttribute("updatedAt")
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-    
+
     public static String generatePk(final String franchiseId) {
         return "FRANCHISE#" + franchiseId;
     }
-    
-    public static String generateSk(final String branchId, final String productId) {
-        return "BRANCH#" + branchId + "#PRODUCT#" + productId;
+
+    public static String generateSk(final String name) {
+        return "BRANCHNAME#" + name.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public static BranchNameLockEntity from(final String franchiseId, final String branchId, final String name) {
+        return BranchNameLockEntity.builder()
+                .pk(generatePk(franchiseId))
+                .sk(generateSk(name))
+                .franchiseId(franchiseId)
+                .branchId(branchId)
+                .build();
     }
 }
