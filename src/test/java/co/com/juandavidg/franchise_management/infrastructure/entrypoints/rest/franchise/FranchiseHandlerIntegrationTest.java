@@ -159,6 +159,79 @@ class FranchiseHandlerIntegrationTest {
                 .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
     }
 
+    @Test
+    void shouldUpdateFranchiseName() {
+        // ARRANGE
+        final FranchiseResponseDTO created = createFranchise(uniqueName("Wendy's"));
+        final String newName = uniqueName("Popeyes");
+
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/franchises/{id}", created.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(franchiseJson(newName))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(created.id())
+                .jsonPath("$.name").isEqualTo(newName);
+    }
+
+    @Test
+    void shouldRejectUpdateWhenFranchiseIsMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/franchises/{id}", "missing-" + UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(franchiseJson("Popeyes"))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.FRANCHISE_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectUpdateWhenNameAlreadyExists() {
+        // ARRANGE
+        final String existingName = uniqueName("Pizza Hut");
+        createFranchise(existingName);
+        final FranchiseResponseDTO target = createFranchise(uniqueName("Taco Bell"));
+
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/franchises/{id}", target.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(franchiseJson(existingName))
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_ALREADY_EXISTS")
+                .jsonPath("$.message").isEqualTo(ErrorCode.FRANCHISE_ALREADY_EXISTS.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectBlankNameOnUpdate() {
+        // ARRANGE
+        final FranchiseResponseDTO created = createFranchise(uniqueName("Arby's"));
+
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/franchises/{id}", created.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":""}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.message").isEqualTo("name: must not be blank")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
     private FranchiseResponseDTO createFranchise(final String name) {
         final FranchiseResponseDTO created = client.post()
                 .uri("/v1/franchises")

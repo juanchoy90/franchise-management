@@ -6,6 +6,10 @@ final class OpenApiExamples {
             {"name":"McDonald's"}
             """;
 
+    static final String UPDATE_FRANCHISE = """
+            {"name":"Popeyes"}
+            """;
+
     static final String FRANCHISE = """
             {"id":"550e8400-e29b-41d4-a716-446655440000","name":"McDonald's","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
             """;
