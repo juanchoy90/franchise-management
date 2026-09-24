@@ -34,12 +34,20 @@ public class FranchiseRouter {
                     method = RequestMethod.GET,
                     produces = JSON,
                     beanClass = FranchiseApi.class,
-                    beanMethod = "findById")
+                    beanMethod = "findById"),
+            @RouterOperation(
+                    path = FRANCHISE_BY_ID,
+                    method = RequestMethod.PATCH,
+                    consumes = JSON,
+                    produces = JSON,
+                    beanClass = FranchiseApi.class,
+                    beanMethod = "update")
     })
     public RouterFunction<ServerResponse> franchiseRoutes(final FranchiseHandler handler) {
         return route()
                 .POST(FRANCHISES, handler::create)
                 .GET(FRANCHISE_BY_ID, handler::findById)
+                .PATCH(FRANCHISE_BY_ID, handler::update)
                 .build();
     }
 }

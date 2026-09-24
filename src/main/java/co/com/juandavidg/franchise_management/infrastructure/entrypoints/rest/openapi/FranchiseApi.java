@@ -3,6 +3,7 @@ package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.o
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.exception.ErrorResponse;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.CreateFranchiseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.UpdateFranchiseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -113,4 +114,67 @@ public interface FranchiseApi {
                                     examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
             })
     Mono<ServerResponse> findById(final ServerRequest request);
+
+    @Operation(
+            operationId = "updateFranchise",
+            tags = {"Franchises"},
+            summary = "Update a franchise name",
+            description = "Renames an existing franchise. The new commercial name must remain unique.",
+            parameters = @Parameter(
+                    name = "id",
+                    in = ParameterIn.PATH,
+                    required = true,
+                    description = "Franchise unique identifier",
+                    schema = @Schema(
+                            type = "string",
+                            format = "uuid",
+                            example = "550e8400-e29b-41d4-a716-446655440000")),
+            requestBody = @RequestBody(
+                    required = true,
+                    description = "New franchise name",
+                    content = @Content(
+                            mediaType = JSON,
+                            schema = @Schema(implementation = UpdateFranchiseDTO.class),
+                            examples = @ExampleObject(
+                                    name = "updateFranchise",
+                                    summary = "Valid rename",
+                                    value = OpenApiExamples.UPDATE_FRANCHISE))),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Franchise renamed",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = FranchiseResponseDTO.class),
+                                    examples = @ExampleObject(name = "updated", value = OpenApiExamples.FRANCHISE))),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Request body failed syntactic validation",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "validationError", value = OpenApiExamples.VALIDATION_ERROR))),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "No franchise exists for the given identifier",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "notFound", value = OpenApiExamples.FRANCHISE_NOT_FOUND))),
+                    @ApiResponse(
+                            responseCode = "409",
+                            description = "A franchise with the same name already exists",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "duplicateName", value = OpenApiExamples.DUPLICATE_FRANCHISE))),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Unexpected persistence or infrastructure failure",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
+            })
+    Mono<ServerResponse> update(final ServerRequest request);
 }
