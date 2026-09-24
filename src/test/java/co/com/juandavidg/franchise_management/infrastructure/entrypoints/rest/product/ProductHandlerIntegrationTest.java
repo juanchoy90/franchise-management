@@ -237,6 +237,121 @@ class ProductHandlerIntegrationTest {
     }
 
     @Test
+    void shouldApplyStockDelta() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("In-N-Out"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Airport");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"delta":15}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(product.id())
+                .jsonPath("$.stock").isEqualTo(25)
+                .jsonPath("$.updatedAt").exists();
+    }
+
+    @Test
+    void shouldRejectDeltaWhenStockWouldBeNegative() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Chipotle"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"delta":-20}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INSUFFICIENT_STOCK")
+                .jsonPath("$.message").isEqualTo(ErrorCode.INSUFFICIENT_STOCK.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectStockUpdateWhenProductIsMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", UUID.randomUUID().toString())
+                        .queryParam("branchId", UUID.randomUUID().toString())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"delta":5}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("PRODUCT_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.PRODUCT_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectDeltaOutOfRange() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Five Guys"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Airport");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"delta":10000001}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.message").isEqualTo("delta: must be less than or equal to 10000000")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectStockUpdateWhenQueryParamsAreMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/products/{id}", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"delta":5}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
     void shouldRejectDeleteWhenQueryParamsAreMissing() {
         // ACT & ASSERT
         client.delete()

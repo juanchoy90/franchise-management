@@ -5,9 +5,11 @@ import co.com.juandavidg.franchise_management.domain.model.exceptions.BusinessEx
 import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.domain.ports.in.AddProductUseCase;
 import co.com.juandavidg.franchise_management.domain.ports.in.DeleteProductUseCase;
+import co.com.juandavidg.franchise_management.domain.ports.in.UpdateProductStockUseCase;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.openapi.ProductApi;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.AddProductDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.ProductResponseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.UpdateProductStockDTO;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -22,14 +24,17 @@ public class ProductHandler implements ProductApi {
 
     private final AddProductUseCase addProductUseCase;
     private final DeleteProductUseCase deleteProductUseCase;
+    private final UpdateProductStockUseCase updateProductStockUseCase;
     private final Validator validator;
 
     public ProductHandler(
             final AddProductUseCase addProductUseCase,
             final DeleteProductUseCase deleteProductUseCase,
+            final UpdateProductStockUseCase updateProductStockUseCase,
             final Validator validator) {
         this.addProductUseCase = addProductUseCase;
         this.deleteProductUseCase = deleteProductUseCase;
+        this.updateProductStockUseCase = updateProductStockUseCase;
         this.validator = validator;
     }
 
@@ -51,6 +56,19 @@ public class ProductHandler implements ProductApi {
                 .map(ids -> new DeleteProductCommand(ids.getT2(), ids.getT3(), ids.getT1()))
                 .flatMap(deleteProductUseCase::execute)
                 .then(ServerResponse.noContent().build());
+    }
+
+    public Mono<ServerResponse> updateStock(final ServerRequest request) {
+        return Mono.zip(
+                        Mono.just(request.pathVariable("id")),
+                        Mono.justOrEmpty(request.queryParam("franchiseId")).filter(id -> !id.isBlank()),
+                        Mono.justOrEmpty(request.queryParam("branchId")).filter(id -> !id.isBlank()),
+                        request.bodyToMono(UpdateProductStockDTO.class).flatMap(this::validate))
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.VALIDATION_ERROR)))
+                .map(parts -> parts.getT4().toCommand(parts.getT2(), parts.getT3(), parts.getT1()))
+                .flatMap(updateProductStockUseCase::execute)
+                .map(ProductResponseDTO::fromDomain)
+                .flatMap(body -> ServerResponse.ok().bodyValue(body));
     }
 
     private <T> Mono<T> validate(final T dto) {

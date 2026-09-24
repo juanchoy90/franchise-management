@@ -18,6 +18,8 @@ public class HttpStatusResolver {
             Map.entry(ErrorCode.PRODUCT_ALREADY_EXISTS, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.PRODUCT_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.INVALID_STOCK, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.INSUFFICIENT_STOCK, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.STOCK_DELTA_OUT_OF_RANGE, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.VALIDATION_ERROR, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.PERSISTENCE_ERROR, HttpStatus.INTERNAL_SERVER_ERROR),
             Map.entry(ErrorCode.SERVICE_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE),
