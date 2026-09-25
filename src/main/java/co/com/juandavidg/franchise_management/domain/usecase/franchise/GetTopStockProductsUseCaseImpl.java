@@ -1,4 +1,4 @@
-package co.com.juandavidg.franchise_management.domain.usecase.product;
+package co.com.juandavidg.franchise_management.domain.usecase.franchise;
 
 import co.com.juandavidg.franchise_management.domain.model.Branch;
 import co.com.juandavidg.franchise_management.domain.model.BranchTopProduct;

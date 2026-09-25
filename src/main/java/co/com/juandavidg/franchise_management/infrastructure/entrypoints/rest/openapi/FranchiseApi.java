@@ -4,10 +4,12 @@ import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.ex
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.CreateFranchiseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.UpdateFranchiseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.BranchTopProductResponseDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -177,4 +179,43 @@ public interface FranchiseApi {
                                     examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
             })
     Mono<ServerResponse> update(final ServerRequest request);
+
+    @Operation(
+            operationId = "findTopStockProducts",
+            tags = {"Franchises"},
+            summary = "List the highest-stock product of each branch",
+            description = "Returns every branch of the franchise together with the product that currently holds the highest stock. Branches without products are included with a null product.",
+            parameters = @Parameter(
+                    name = "id",
+                    in = ParameterIn.PATH,
+                    required = true,
+                    description = "Franchise unique identifier",
+                    schema = @Schema(
+                            type = "string",
+                            format = "uuid",
+                            example = "550e8400-e29b-41d4-a716-446655440000")),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Branches with their highest-stock product",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    array = @ArraySchema(schema = @Schema(implementation = BranchTopProductResponseDTO.class)),
+                                    examples = @ExampleObject(name = "topStock", value = OpenApiExamples.TOP_STOCK_PRODUCTS))),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "No franchise exists for the given identifier",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "notFound", value = OpenApiExamples.FRANCHISE_NOT_FOUND))),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Unexpected persistence or infrastructure failure",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
+            })
+    Mono<ServerResponse> findTopStock(final ServerRequest request);
 }
