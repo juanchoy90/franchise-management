@@ -36,7 +36,7 @@ public final class DynamoExceptionTranslator {
                 .onErrorMap(ConditionalCheckFailedException.class,
                         failed -> new BusinessException(conflictCode(failed, operationName), failed))
                 .onErrorMap(TransactionCanceledException.class,
-                        e -> new BusinessException(ErrorCode.FRANCHISE_ALREADY_EXISTS, e))
+                        e -> new BusinessException(transactionConflictCode(operationName), e))
                 .onErrorMap(CallNotPermittedException.class,
                         e -> new TechnicalException(ErrorCode.SERVICE_UNAVAILABLE, e))
                 .onErrorMap(TimeoutException.class,
@@ -58,7 +58,14 @@ public final class DynamoExceptionTranslator {
     private static ErrorCode conflictCode(
             final ConditionalCheckFailedException failed,
             final String operationName) {
-        return Map.of("updateProductStock", stockUpdateCode(failed))
+        return Map.of(
+                        "updateProductStock", stockUpdateCode(failed),
+                        "updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS)
+                .getOrDefault(operationName, ErrorCode.FRANCHISE_ALREADY_EXISTS);
+    }
+
+    private static ErrorCode transactionConflictCode(final String operationName) {
+        return Map.of("updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS)
                 .getOrDefault(operationName, ErrorCode.FRANCHISE_ALREADY_EXISTS);
     }
 

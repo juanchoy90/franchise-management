@@ -139,6 +139,44 @@ class BranchDynamoAdapterIntegrationTest {
                 .verifyComplete();
     }
 
+    @Test
+    void shouldRenameBranchAndReleaseOldName() {
+        // ARRANGE
+        final Branch branch = branch(UUID.randomUUID().toString(), "Downtown");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(branch)
+                        .then(repository.updateName(branch.getFranchiseId(), branch.getId(), "Airport"))
+                        .flatMap(updated -> repository.existsByFranchiseIdAndName(
+                                branch.getFranchiseId(), "Downtown")
+                                .map(oldTaken -> updated.getName() + ":" + oldTaken)))
+                .expectNext("Airport:false")
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldRejectRenameWhenNameAlreadyExists() {
+        // ARRANGE
+        final String franchiseId = UUID.randomUUID().toString();
+        final Branch downtown = branch(franchiseId, "Downtown");
+        final Branch airport = branch(franchiseId, "Airport");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(downtown)
+                        .then(repository.save(airport))
+                        .then(repository.updateName(franchiseId, downtown.getId(), "Airport")))
+                .expectErrorMatches(this::isBranchAlreadyExists)
+                .verify();
+    }
+
+    @Test
+    void shouldCompleteEmptyWhenRenamingMissingBranch() {
+        // ACT & ASSERT
+        StepVerifier.create(repository.updateName(
+                        UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Airport"))
+                .verifyComplete();
+    }
+
     private Mono<Void> ensureTable() {
         return Mono.fromFuture(() -> dynamoDbAsyncClient.createTable(CreateTableRequest.builder()
                         .tableName(properties.tableName())
@@ -163,6 +201,11 @@ class BranchDynamoAdapterIntegrationTest {
     private boolean isAlreadyExists(final Throwable error) {
         return error instanceof BusinessException businessException
                 && ErrorCode.FRANCHISE_ALREADY_EXISTS == businessException.getCode();
+    }
+
+    private boolean isBranchAlreadyExists(final Throwable error) {
+        return error instanceof BusinessException businessException
+                && ErrorCode.BRANCH_ALREADY_EXISTS == businessException.getCode();
     }
 
     private static Branch branch(final String franchiseId, final String name) {

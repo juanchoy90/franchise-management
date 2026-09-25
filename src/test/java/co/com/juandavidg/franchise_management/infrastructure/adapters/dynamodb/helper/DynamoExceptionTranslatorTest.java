@@ -33,6 +33,18 @@ class DynamoExceptionTranslatorTest {
     }
 
     @Test
+    void shouldMapBranchRenameCollisionToBranchAlreadyExists() {
+        // ARRANGE
+        final Throwable error = TransactionCanceledException.builder().message("canceled").build();
+
+        // ACT & ASSERT
+        StepVerifier.create(DynamoExceptionTranslator.<Object>translate(error, "updateBranchName"))
+                .expectErrorMatches(mapped -> mapped instanceof BusinessException businessException
+                        && ErrorCode.BRANCH_ALREADY_EXISTS == businessException.getCode())
+                .verify();
+    }
+
+    @Test
     void shouldMapTransactionCanceledToAlreadyExists() {
         // ARRANGE
         final Throwable error = TransactionCanceledException.builder().message("canceled").build();

@@ -17,6 +17,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 public class BranchRouter {
 
     private static final String BRANCHES = "/v1/branches";
+    private static final String BRANCH_BY_ID = "/v1/branches/{id}";
     private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
 
     @Bean
@@ -27,11 +28,19 @@ public class BranchRouter {
                     consumes = JSON,
                     produces = JSON,
                     beanClass = BranchApi.class,
-                    beanMethod = "add")
+                    beanMethod = "add"),
+            @RouterOperation(
+                    path = BRANCH_BY_ID,
+                    method = RequestMethod.PATCH,
+                    consumes = JSON,
+                    produces = JSON,
+                    beanClass = BranchApi.class,
+                    beanMethod = "update")
     })
     public RouterFunction<ServerResponse> branchRoutes(final BranchHandler handler) {
         return route()
                 .POST(BRANCHES, handler::add)
+                .PATCH(BRANCH_BY_ID, handler::update)
                 .build();
     }
 }
