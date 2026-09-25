@@ -21,6 +21,7 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Slf4j
@@ -107,6 +108,52 @@ public class BranchDynamoAdapter implements BranchRepositoryPort {
                         .concatMap(page -> Flux.fromIterable(page.items()))
                         .map(BranchMapper::toDomain),
                 "findBranchesByFranchise");
+    }
+
+    @Override
+    public Mono<Branch> updateName(final String franchiseId, final String branchId, final String newName) {
+        log.debug("Updating branch {} name in franchise {} -> {}", branchId, franchiseId, newName);
+        return findById(franchiseId, branchId)
+                .flatMap(existing -> persistName(existing, newName));
+    }
+
+    private Mono<Branch> persistName(final Branch existing, final String newName) {
+        final Branch updated = existing.toBuilder()
+                .name(newName)
+                .updatedAt(Instant.now())
+                .build();
+        return Mono.just(updated)
+                .filter(branch -> !BranchNameLockEntity.generateSk(existing.getName())
+                        .equals(BranchNameLockEntity.generateSk(newName)))
+                .flatMap(branch -> persistRenamedBranch(existing.getName(), branch))
+                .switchIfEmpty(overwriteMetadata(updated));
+    }
+
+    private Mono<Branch> persistRenamedBranch(final String existingName, final Branch updated) {
+        final BranchEntity entity = BranchMapper.toEntity(updated);
+        final TransactWriteItemsEnhancedRequest request = TransactWriteItemsEnhancedRequest.builder()
+                .addPutItem(table, entity)
+                .addPutItem(nameLockTable, putIfAbsent(
+                        BranchNameLockEntity.from(updated.getFranchiseId(), updated.getId(), updated.getName()),
+                        BranchNameLockEntity.class))
+                .addDeleteItem(nameLockTable, Key.builder()
+                        .partitionValue(BranchNameLockEntity.generatePk(updated.getFranchiseId()))
+                        .sortValue(BranchNameLockEntity.generateSk(existingName))
+                        .build())
+                .build();
+
+        return decorator.decorate(
+                Mono.fromFuture(() -> enhancedClient.transactWriteItems(request))
+                        .thenReturn(BranchMapper.toDomain(entity)),
+                "updateBranchName");
+    }
+
+    private Mono<Branch> overwriteMetadata(final Branch branch) {
+        final BranchEntity entity = BranchMapper.toEntity(branch);
+        return decorator.decorate(
+                Mono.fromFuture(() -> table.putItem(entity))
+                        .thenReturn(BranchMapper.toDomain(entity)),
+                "updateBranchName");
     }
 
     private <T> TransactPutItemEnhancedRequest<T> putIfAbsent(final T item, final Class<T> itemClass) {

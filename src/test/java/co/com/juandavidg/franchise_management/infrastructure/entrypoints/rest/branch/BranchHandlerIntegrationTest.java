@@ -2,6 +2,7 @@ package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.b
 
 import co.com.juandavidg.franchise_management.domain.model.exceptions.ErrorCode;
 import co.com.juandavidg.franchise_management.infrastructure.adapters.dynamodb.config.DynamoDbProperties;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.branch.dto.BranchResponseDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.franchise.dto.FranchiseResponseDTO;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -147,6 +148,138 @@ class BranchHandlerIntegrationTest {
                 .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
     }
 
+    @Test
+    void shouldRenameBranch() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("In-N-Out"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/branches/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .build(branch.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Airport"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(branch.id())
+                .jsonPath("$.name").isEqualTo("Airport")
+                .jsonPath("$.updatedAt").exists();
+    }
+
+    @Test
+    void shouldRejectRenameWhenFranchiseIsMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/branches/{id}")
+                        .queryParam("franchiseId", UUID.randomUUID().toString())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Airport"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.FRANCHISE_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectRenameWhenBranchIsMissing() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Wendy's"));
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/branches/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Airport"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("BRANCH_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.BRANCH_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectRenameWhenNameAlreadyExists() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Chipotle"));
+        final BranchResponseDTO downtown = addBranch(franchise.id(), "Downtown");
+        addBranch(franchise.id(), "Airport");
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/branches/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .build(downtown.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Airport"}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("BRANCH_ALREADY_EXISTS")
+                .jsonPath("$.message").isEqualTo(ErrorCode.BRANCH_ALREADY_EXISTS.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectRenameWhenFranchiseIdIsMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/branches/{id}", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Airport"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectBlankNameOnUpdate() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Arby's"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/branches/{id}")
+                        .queryParam("franchiseId", franchise.id())
+                        .build(branch.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":""}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.message").isEqualTo("name: must not be blank")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
     private FranchiseResponseDTO createFranchise(final String name) {
         final FranchiseResponseDTO created = client.post()
                 .uri("/v1/franchises")
@@ -162,13 +295,17 @@ class BranchHandlerIntegrationTest {
         return Objects.requireNonNull(created);
     }
 
-    private void addBranch(final String franchiseId, final String name) {
-        client.post()
+    private BranchResponseDTO addBranch(final String franchiseId, final String name) {
+        final BranchResponseDTO created = client.post()
                 .uri("/v1/branches")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(branchJson(franchiseId, name))
                 .exchange()
-                .expectStatus().isCreated();
+                .expectStatus().isCreated()
+                .expectBody(BranchResponseDTO.class)
+                .returnResult()
+                .getResponseBody();
+        return Objects.requireNonNull(created);
     }
 
     private Mono<Void> ensureTable() {

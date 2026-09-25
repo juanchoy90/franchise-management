@@ -13,4 +13,6 @@ public interface BranchRepositoryPort {
     Mono<Boolean> existsByFranchiseIdAndName(final String franchiseId, final String name);
 
     Flux<Branch> findByFranchiseId(final String franchiseId);
+
+    Mono<Branch> updateName(final String franchiseId, final String branchId, final String newName);
 }
