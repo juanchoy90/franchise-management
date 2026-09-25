@@ -1,13 +1,11 @@
-# Development Environment Profile (AWS Cloud)
-
 aws:
   dynamodb:
-    table-name: FranchiseManagement
+    table-name: ${DYNAMODB_TABLE_FRANCHISE:FranchiseManagement}
     region: ${AWS_REGION:us-east-1}
     max-concurrency: 50
-    connection-acquisition-timeout: 5000
-    connection-timeout: 5000
-    read-timeout: 5000
+    connection-acquisition-timeout: 2000
+    connection-timeout: 2000
+    read-timeout: 3500
     resilience-instance: dynamodb
 
 resilience4j:
@@ -15,6 +13,7 @@ resilience4j:
     instances:
       dynamodb:
         register-health-indicator: true
+        sliding-window-type: COUNT_BASED
         sliding-window-size: 20
         minimum-number-of-calls: 10
         permitted-number-of-calls-in-half-open-state: 5
@@ -22,11 +21,15 @@ resilience4j:
         wait-duration-in-open-state: 30s
         failure-rate-threshold: 50
         slow-call-rate-threshold: 50
-        slow-call-duration-threshold: 2s
+        slow-call-duration-threshold: 3s
         record-exceptions:
           - software.amazon.awssdk.core.exception.SdkClientException
           - software.amazon.awssdk.services.dynamodb.model.DynamoDbException
-  
+        ignore-exceptions:
+          - software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
+          - software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
+          - software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
+
   retry:
     instances:
       dynamodb:
@@ -39,22 +42,29 @@ resilience4j:
         retry-exceptions:
           - software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughputExceededException
           - software.amazon.awssdk.services.dynamodb.model.RequestLimitExceededException
+          - software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException
           - software.amazon.awssdk.core.exception.SdkClientException
-  
+
   timelimiter:
     instances:
       dynamodb:
-        timeout-duration: 1500ms
+        timeout-duration: 5000ms
         cancel-running-future: true
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,circuitbreakers,retries
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+        add-additional-paths: true
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:
@@ -62,5 +72,7 @@ logging:
     co.com.juandavidg.franchise_management: DEBUG
     software.amazon.awssdk: INFO
     io.github.resilience4j: INFO
+    reactor.netty: INFO
+    io.netty: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
