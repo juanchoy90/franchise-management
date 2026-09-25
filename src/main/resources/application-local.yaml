@@ -1,14 +1,12 @@
-# Local Development Profile (LocalStack)
-
 aws:
   dynamodb:
-    table-name: FranchiseManagement
-    endpoint: http://localhost:4566
-    region: us-east-1
+    table-name: ${DYNAMODB_TABLE_FRANCHISE:FranchiseManagement}
+    endpoint: ${DYNAMODB_ENDPOINT:http://localhost:4566}
+    region: ${AWS_REGION:us-east-1}
     max-concurrency: 10
-    connection-acquisition-timeout: 3000
-    connection-timeout: 3000
-    read-timeout: 3000
+    connection-acquisition-timeout: 2000
+    connection-timeout: 2000
+    read-timeout: 3500
     resilience-instance: dynamodb
 
 resilience4j:
@@ -16,23 +14,28 @@ resilience4j:
     instances:
       dynamodb:
         register-health-indicator: true
+        sliding-window-type: COUNT_BASED
         sliding-window-size: 10
         minimum-number-of-calls: 5
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
         wait-duration-in-open-state: 10s
-        failure-rate-threshold: 80
-        slow-call-rate-threshold: 80
-        slow-call-duration-threshold: 5s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
         record-exceptions:
           - software.amazon.awssdk.core.exception.SdkClientException
           - software.amazon.awssdk.services.dynamodb.model.DynamoDbException
-  
+        ignore-exceptions:
+          - software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException
+          - software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException
+          - software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
+
   retry:
     instances:
       dynamodb:
-        max-attempts: 5
-        wait-duration: 1000ms
+        max-attempts: 3
+        wait-duration: 500ms
         enable-exponential-backoff: true
         exponential-backoff-multiplier: 2
         enable-randomized-wait: true
@@ -40,8 +43,9 @@ resilience4j:
         retry-exceptions:
           - software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughputExceededException
           - software.amazon.awssdk.services.dynamodb.model.RequestLimitExceededException
+          - software.amazon.awssdk.services.dynamodb.model.InternalServerErrorException
           - software.amazon.awssdk.core.exception.SdkClientException
-  
+
   timelimiter:
     instances:
       dynamodb:
@@ -52,17 +56,24 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,circuitbreakers,retries
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+        add-additional-paths: true
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:
     root: INFO
     co.com.juandavidg.franchise_management: DEBUG
-    software.amazon.awssdk: DEBUG
+    software.amazon.awssdk: INFO
     io.github.resilience4j: DEBUG
-    reactor.netty: DEBUG
+    reactor.netty: INFO
+    io.netty: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"

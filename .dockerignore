@@ -1,0 +1,12 @@
+target/
+.git/
+.github/
+.idea/
+*.iml
+terraform/
+.terraform/
+*.tfstate*
+.env
+*.log
+README.md
+docker-compose.yml
