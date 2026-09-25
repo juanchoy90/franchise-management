@@ -355,6 +355,172 @@ class ProductHandlerIntegrationTest {
     }
 
     @Test
+    void shouldRenameProduct() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Shake Shack"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.id").isEqualTo(product.id())
+                .jsonPath("$.name").isEqualTo("Burger")
+                .jsonPath("$.stock").isEqualTo(10)
+                .jsonPath("$.updatedAt").exists();
+    }
+
+    @Test
+    void shouldRejectProductRenameWhenFranchiseIsMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", UUID.randomUUID().toString())
+                        .queryParam("branchId", UUID.randomUUID().toString())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("FRANCHISE_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.FRANCHISE_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectProductRenameWhenBranchIsMissing() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Arby's"));
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", UUID.randomUUID().toString())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("BRANCH_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.BRANCH_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectProductRenameWhenProductIsMissing() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Sonic"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(UUID.randomUUID().toString()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("PRODUCT_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo(ErrorCode.PRODUCT_NOT_FOUND.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectProductRenameWhenNameAlreadyExists() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("Whataburger"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+        final ProductResponseDTO fries = addProduct(franchise.id(), branch.id(), "Fries", 10);
+        addProduct(franchise.id(), branch.id(), "Burger", 5);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(fries.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isEqualTo(409)
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("PRODUCT_ALREADY_EXISTS")
+                .jsonPath("$.message").isEqualTo(ErrorCode.PRODUCT_ALREADY_EXISTS.getMessage())
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectProductRenameWhenQueryParamsAreMissing() {
+        // ACT & ASSERT
+        client.patch()
+                .uri("/v1/products/{id}/name", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":"Burger"}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
+    void shouldRejectBlankNameOnProductUpdate() {
+        // ARRANGE
+        final FranchiseResponseDTO franchise = createFranchise(uniqueName("White Castle"));
+        final BranchResponseDTO branch = addBranch(franchise.id(), "Downtown");
+        final ProductResponseDTO product = addProduct(franchise.id(), branch.id(), "Fries", 10);
+
+        // ACT & ASSERT
+        client.patch()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/products/{id}/name")
+                        .queryParam("franchiseId", franchise.id())
+                        .queryParam("branchId", branch.id())
+                        .build(product.id()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {"name":""}
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.message").isEqualTo("name: must not be blank")
+                .jsonPath("$.traceId").value(traceId -> assertThat(traceId).isNotEqualTo("n/a"));
+    }
+
+    @Test
     void shouldRejectDeleteWhenQueryParamsAreMissing() {
         // ACT & ASSERT
         client.delete()

@@ -23,4 +23,10 @@ public interface ProductRepositoryPort {
             final Integer delta);
 
     Mono<Product> findTopStock(final String franchiseId, final String branchId);
+
+    Mono<Product> updateName(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final String newName);
 }
