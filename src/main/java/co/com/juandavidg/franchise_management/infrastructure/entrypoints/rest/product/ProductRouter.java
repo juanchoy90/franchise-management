@@ -18,6 +18,7 @@ public class ProductRouter {
 
     private static final String PRODUCTS = "/v1/products";
     private static final String PRODUCT_BY_ID = "/v1/products/{id}";
+    private static final String PRODUCT_NAME = "/v1/products/{id}/name";
     private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
 
     @Bean
@@ -41,12 +42,20 @@ public class ProductRouter {
                     consumes = JSON,
                     produces = JSON,
                     beanClass = ProductApi.class,
-                    beanMethod = "updateStock")
+                    beanMethod = "updateStock"),
+            @RouterOperation(
+                    path = PRODUCT_NAME,
+                    method = RequestMethod.PATCH,
+                    consumes = JSON,
+                    produces = JSON,
+                    beanClass = ProductApi.class,
+                    beanMethod = "updateName")
     })
     public RouterFunction<ServerResponse> productRoutes(final ProductHandler handler) {
         return route()
                 .POST(PRODUCTS, handler::add)
                 .PATCH(PRODUCT_BY_ID, handler::updateStock)
+                .PATCH(PRODUCT_NAME, handler::updateName)
                 .DELETE(PRODUCT_BY_ID, handler::delete)
                 .build();
     }

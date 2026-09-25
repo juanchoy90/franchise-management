@@ -3,6 +3,7 @@ package co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.o
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.exception.ErrorResponse;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.AddProductDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.ProductResponseDTO;
+import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.UpdateProductDTO;
 import co.com.juandavidg.franchise_management.infrastructure.entrypoints.rest.product.dto.UpdateProductStockDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -221,4 +222,91 @@ public interface ProductApi {
                                     examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
             })
     Mono<ServerResponse> delete(final ServerRequest request);
+
+    @Operation(
+            operationId = "updateProductName",
+            tags = {"Products"},
+            summary = "Update a product name",
+            description = "Renames an existing product. The new name must remain unique within the branch.",
+            parameters = {
+                    @Parameter(
+                            name = "id",
+                            in = ParameterIn.PATH,
+                            required = true,
+                            description = "Product unique identifier",
+                            schema = @Schema(
+                                    type = "string",
+                                    format = "uuid",
+                                    example = "3fa85f64-5717-4562-b3fc-2c963f66afa6")),
+                    @Parameter(
+                            name = "franchiseId",
+                            in = ParameterIn.QUERY,
+                            required = true,
+                            description = "Franchise that owns the product",
+                            schema = @Schema(
+                                    type = "string",
+                                    format = "uuid",
+                                    example = "550e8400-e29b-41d4-a716-446655440000")),
+                    @Parameter(
+                            name = "branchId",
+                            in = ParameterIn.QUERY,
+                            required = true,
+                            description = "Branch that owns the product",
+                            schema = @Schema(
+                                    type = "string",
+                                    format = "uuid",
+                                    example = "7c9e6679-7425-40de-944b-e07fc1f90ae7"))
+            },
+            requestBody = @RequestBody(
+                    required = true,
+                    description = "New product name",
+                    content = @Content(
+                            mediaType = JSON,
+                            schema = @Schema(implementation = UpdateProductDTO.class),
+                            examples = @ExampleObject(
+                                    name = "updateProduct",
+                                    summary = "Valid rename",
+                                    value = OpenApiExamples.UPDATE_PRODUCT))),
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "Product renamed",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ProductResponseDTO.class),
+                                    examples = @ExampleObject(name = "updated", value = OpenApiExamples.PRODUCT))),
+                    @ApiResponse(
+                            responseCode = "400",
+                            description = "Request body failed syntactic validation or franchiseId/branchId is missing",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "validationError", value = OpenApiExamples.VALIDATION_ERROR))),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "The franchise, branch or product does not exist",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "franchiseNotFound", value = OpenApiExamples.FRANCHISE_NOT_FOUND),
+                                            @ExampleObject(name = "branchNotFound", value = OpenApiExamples.BRANCH_NOT_FOUND),
+                                            @ExampleObject(name = "productNotFound", value = OpenApiExamples.PRODUCT_NOT_FOUND)
+                                    })),
+                    @ApiResponse(
+                            responseCode = "409",
+                            description = "A product with the same name already exists in the branch",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "duplicateName", value = OpenApiExamples.DUPLICATE_PRODUCT))),
+                    @ApiResponse(
+                            responseCode = "500",
+                            description = "Unexpected persistence or infrastructure failure",
+                            content = @Content(
+                                    mediaType = JSON,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "unexpectedError", value = OpenApiExamples.UNEXPECTED_ERROR)))
+            })
+    Mono<ServerResponse> updateName(final ServerRequest request);
 }

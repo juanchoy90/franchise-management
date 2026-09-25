@@ -60,12 +60,15 @@ public final class DynamoExceptionTranslator {
             final String operationName) {
         return Map.of(
                         "updateProductStock", stockUpdateCode(failed),
-                        "updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS)
+                        "updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS,
+                        "updateProductName", ErrorCode.PRODUCT_ALREADY_EXISTS)
                 .getOrDefault(operationName, ErrorCode.FRANCHISE_ALREADY_EXISTS);
     }
 
     private static ErrorCode transactionConflictCode(final String operationName) {
-        return Map.of("updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS)
+        return Map.of(
+                        "updateBranchName", ErrorCode.BRANCH_ALREADY_EXISTS,
+                        "updateProductName", ErrorCode.PRODUCT_ALREADY_EXISTS)
                 .getOrDefault(operationName, ErrorCode.FRANCHISE_ALREADY_EXISTS);
     }
 

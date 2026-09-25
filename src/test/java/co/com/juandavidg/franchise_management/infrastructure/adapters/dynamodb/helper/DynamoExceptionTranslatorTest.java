@@ -45,6 +45,18 @@ class DynamoExceptionTranslatorTest {
     }
 
     @Test
+    void shouldMapProductRenameCollisionToProductAlreadyExists() {
+        // ARRANGE
+        final Throwable error = TransactionCanceledException.builder().message("canceled").build();
+
+        // ACT & ASSERT
+        StepVerifier.create(DynamoExceptionTranslator.<Object>translate(error, "updateProductName"))
+                .expectErrorMatches(mapped -> mapped instanceof BusinessException businessException
+                        && ErrorCode.PRODUCT_ALREADY_EXISTS == businessException.getCode())
+                .verify();
+    }
+
+    @Test
     void shouldMapTransactionCanceledToAlreadyExists() {
         // ARRANGE
         final Throwable error = TransactionCanceledException.builder().message("canceled").build();

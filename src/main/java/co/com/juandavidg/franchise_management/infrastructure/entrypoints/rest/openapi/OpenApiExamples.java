@@ -50,6 +50,10 @@ final class OpenApiExamples {
             {"franchiseId":"550e8400-e29b-41d4-a716-446655440000","branchId":"7c9e6679-7425-40de-944b-e07fc1f90ae7","name":"Fries","stock":10}
             """;
 
+    static final String UPDATE_PRODUCT = """
+            {"name":"Burger"}
+            """;
+
     static final String PRODUCT = """
             {"id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","franchiseId":"550e8400-e29b-41d4-a716-446655440000","branchId":"7c9e6679-7425-40de-944b-e07fc1f90ae7","name":"Fries","stock":10,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
             """;

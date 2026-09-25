@@ -206,6 +206,49 @@ class ProductDynamoAdapterIntegrationTest {
     }
 
     @Test
+    void shouldRenameProductAndReleaseOldName() {
+        // ARRANGE
+        final Product product = product(UUID.randomUUID().toString(), UUID.randomUUID().toString(), "Fries");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(product)
+                        .then(repository.updateName(
+                                product.getFranchiseId(), product.getBranchId(), product.getId(), "Burger"))
+                        .flatMap(updated -> repository.existsByFranchiseIdAndBranchIdAndName(
+                                product.getFranchiseId(), product.getBranchId(), "Fries")
+                                .map(oldTaken -> updated.getName() + ":" + oldTaken)))
+                .expectNext("Burger:false")
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldRejectRenameWhenProductNameAlreadyExists() {
+        // ARRANGE
+        final String franchiseId = UUID.randomUUID().toString();
+        final String branchId = UUID.randomUUID().toString();
+        final Product fries = product(franchiseId, branchId, "Fries");
+        final Product burger = product(franchiseId, branchId, "Burger");
+
+        // ACT & ASSERT
+        StepVerifier.create(repository.save(fries)
+                        .then(repository.save(burger))
+                        .then(repository.updateName(franchiseId, branchId, fries.getId(), "Burger")))
+                .expectErrorMatches(this::isProductAlreadyExists)
+                .verify();
+    }
+
+    @Test
+    void shouldCompleteEmptyWhenRenamingMissingProduct() {
+        // ACT & ASSERT
+        StepVerifier.create(repository.updateName(
+                        UUID.randomUUID().toString(),
+                        UUID.randomUUID().toString(),
+                        UUID.randomUUID().toString(),
+                        "Burger"))
+                .verifyComplete();
+    }
+
+    @Test
     void shouldCompleteEmptyWhenBranchHasNoProducts() {
         // ACT & ASSERT
         StepVerifier.create(repository.findTopStock(UUID.randomUUID().toString(), UUID.randomUUID().toString()))
@@ -254,6 +297,11 @@ class ProductDynamoAdapterIntegrationTest {
     private boolean isAlreadyExists(final Throwable error) {
         return error instanceof BusinessException businessException
                 && ErrorCode.FRANCHISE_ALREADY_EXISTS == businessException.getCode();
+    }
+
+    private boolean isProductAlreadyExists(final Throwable error) {
+        return error instanceof BusinessException businessException
+                && ErrorCode.PRODUCT_ALREADY_EXISTS == businessException.getCode();
     }
 
     private boolean isProductNotFound(final Throwable error) {

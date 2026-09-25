@@ -139,6 +139,57 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
                 "findTopStock");
     }
 
+    @Override
+    public Mono<Product> updateName(
+            final String franchiseId,
+            final String branchId,
+            final String productId,
+            final String newName) {
+        log.debug("Updating product {} name in branch {} -> {}", productId, branchId, newName);
+        return findById(franchiseId, branchId, productId)
+                .flatMap(existing -> persistName(existing, newName));
+    }
+
+    private Mono<Product> persistName(final Product existing, final String newName) {
+        final Product updated = existing.toBuilder()
+                .name(newName)
+                .updatedAt(Instant.now())
+                .build();
+        return Mono.just(updated)
+                .filter(product -> ProductNameLockEntity.generateSk(existing.getBranchId(), existing.getName())
+                        .equals(ProductNameLockEntity.generateSk(existing.getBranchId(), newName)))
+                .flatMap(this::overwriteMetadata)
+                .switchIfEmpty(persistRenamedProduct(existing.getName(), updated));
+    }
+
+    private Mono<Product> persistRenamedProduct(final String existingName, final Product updated) {
+        final ProductEntity entity = ProductMapper.toEntity(updated);
+        final TransactWriteItemsEnhancedRequest request = TransactWriteItemsEnhancedRequest.builder()
+                .addPutItem(table, entity)
+                .addPutItem(nameLockTable, putIfAbsent(
+                        ProductNameLockEntity.from(
+                                updated.getFranchiseId(), updated.getBranchId(), updated.getId(), updated.getName()),
+                        ProductNameLockEntity.class))
+                .addDeleteItem(nameLockTable, Key.builder()
+                        .partitionValue(ProductNameLockEntity.generatePk(updated.getFranchiseId()))
+                        .sortValue(ProductNameLockEntity.generateSk(updated.getBranchId(), existingName))
+                        .build())
+                .build();
+
+        return decorator.decorate(
+                Mono.fromFuture(() -> enhancedClient.transactWriteItems(request))
+                        .thenReturn(ProductMapper.toDomain(entity)),
+                "updateProductName");
+    }
+
+    private Mono<Product> overwriteMetadata(final Product product) {
+        final ProductEntity entity = ProductMapper.toEntity(product);
+        return decorator.decorate(
+                Mono.fromFuture(() -> table.putItem(entity))
+                        .thenReturn(ProductMapper.toDomain(entity)),
+                "updateProductName");
+    }
+
     private Mono<Void> deleteProductAndLock(final Key productKey, final ProductEntity entity) {
         final TransactWriteItemsEnhancedRequest request = TransactWriteItemsEnhancedRequest.builder()
                 .addDeleteItem(table, TransactDeleteItemEnhancedRequest.builder()
@@ -186,7 +237,7 @@ public class ProductDynamoAdapter implements ProductRepositoryPort {
     private static Key lockKey(final ProductEntity entity) {
         return Key.builder()
                 .partitionValue(ProductNameLockEntity.generatePk(entity.getFranchiseId()))
-                .sortValue("UNIQ#PRODUCT#" + entity.getBranchId() + "#" + entity.getNameKey())
+                .sortValue(ProductNameLockEntity.generateSk(entity.getBranchId(), entity.getName()))
                 .build();
     }
 
